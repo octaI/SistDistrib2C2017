@@ -3,10 +3,11 @@ project(distribuidos)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-add_library(common-cine
-        src/ipc/queue.cpp)
+add_library(common
+        src/ipc/queue.cpp src/ipc/communicationqueue.cpp)
 
 add_subdirectory("src/utils")
 add_subdirectory("src/cinema")
 add_subdirectory("src/client")
+
 
