@@ -1,0 +1,7 @@
+language: cpp
+dist: trusty
+
+before_script:
+- cmake .
+script:
+- make
