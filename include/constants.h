@@ -17,4 +17,12 @@
 #define QUEUE_CLIENT_FILE "/usr/bin/bash"
 #define QUEUE_CLIENT_CHAR 'k'
 
+
+/* ---Definition of channel constants between known communications in the system */
+
+#define CINEMA_TO_CLIENT 1
+#define CLIENT_TO_CINEMA 0
+
+//TODO:
+
 #endif //DISTRIBUIDOS_CONSTANTS_H

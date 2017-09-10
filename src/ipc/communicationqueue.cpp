@@ -26,3 +26,7 @@ void delete_queue(commqueue channel) {
     queue_destroy(channel.id_firstqueue);
     queue_destroy(channel.id_secondqueue);
 }
+
+void set_channel_orientation(commqueue channel, int FLAG) {
+    channel.orientation = FLAG;
+}
