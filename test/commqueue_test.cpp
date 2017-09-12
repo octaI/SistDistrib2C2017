@@ -15,9 +15,9 @@ int test_msg_transmission(){
     if (fork() == 0){ //i'm the child
         test_queue.orientation = 0;
         test_msg = receive_message(test_queue,10);
-        std::cout << "CLIENT RECEIVED: " << test_msg.message_choice.test.test_msg << std::endl;
         std::cout << strcmp(test_msg.message_choice.test.test_msg,test_string.c_str()) << std::endl;
         strcmp(test_msg.message_choice.test.test_msg,test_string.c_str()) == 0 ?  exit(0) : exit(-1);
+        std::cout << "CLIENT RECEIVED: " << test_msg.message_choice.test.test_msg << std::endl;
     } else {
         //i'm the parent
         test_queue.orientation = 1;
@@ -26,13 +26,14 @@ int test_msg_transmission(){
         send_message(test_queue,test_msg);
         std::cout << "MANDE EL MSG" << std::endl;
         int child_status;
-
-        wait(NULL);
-        WEXITSTATUS(child_status);
+        wait(&child_status);
+        child_status =WEXITSTATUS(child_status);
+        std::cout << "CLIENT FINISHED WITH STATUS " << child_status << std::endl;
         if(child_status == 0){
             delete_queue(test_queue);
             return 0;
         }else{
+            delete_queue(test_queue);
             return -1;
         }
     }
