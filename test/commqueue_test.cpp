@@ -15,14 +15,14 @@ int test_msg_transmission(){
     if (fork() == 0){ //i'm the child
         test_queue.orientation = 0;
         test_msg = receive_message(test_queue,10);
-        std::cout << strcmp(test_msg.message_choice.test.test_msg,test_string.c_str()) << std::endl;
-        strcmp(test_msg.message_choice.test.test_msg,test_string.c_str()) == 0 ?  exit(0) : exit(-1);
-        std::cout << "CLIENT RECEIVED: " << test_msg.message_choice.test.test_msg << std::endl;
+        std::cout << strcmp(test_msg.message_choice.m0.test_msg,test_string.c_str()) << std::endl;
+        strcmp(test_msg.message_choice.m0.test_msg,test_string.c_str()) == 0 ?  exit(0) : exit(-1);
+        std::cout << "CLIENT RECEIVED: " << test_msg.message_choice.m0.test_msg << std::endl;
     } else {
         //i'm the parent
         test_queue.orientation = 1;
         test_msg.message_type = 10;
-        strcpy(test_msg.message_choice.test.test_msg,test_string.c_str());
+        strcpy(test_msg.message_choice.m0.test_msg,test_string.c_str());
         send_message(test_queue,test_msg);
         std::cout << "MANDE EL MSG" << std::endl;
         int child_status;

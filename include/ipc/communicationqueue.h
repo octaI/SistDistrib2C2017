@@ -4,6 +4,9 @@
 #include "../messages/message.h"
 #include <string>
 
+#define COMMQUEUE_AS_SERVER 0;
+#define COMMQUEUE_AS_CLIENT 1;
+
 typedef struct {
     unsigned int id_firstqueue;
     unsigned int id_secondqueue;
