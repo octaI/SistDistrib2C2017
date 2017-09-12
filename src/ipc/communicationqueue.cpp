@@ -5,8 +5,8 @@
 
 commqueue create_commqueue(std::string filename, char key_char) {
     commqueue new_queue;
-    new_queue.id_firstqueue = queue_create(filename,key_char);
-    new_queue.id_secondqueue = queue_create(filename,key_char+1);
+    new_queue.id_firstqueue = (unsigned int)queue_create(filename,key_char);
+    new_queue.id_secondqueue = (unsigned int)queue_create(filename,key_char+1);
     return new_queue;
 }
 
