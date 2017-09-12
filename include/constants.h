@@ -1,6 +1,12 @@
 #ifndef DISTRIBUIDOS_CONSTANTS_H
 #define DISTRIBUIDOS_CONSTANTS_H
 
+/* definition of general constants */
+
+#define MAX_LENGTH 500
+
+/* -------------------------------------------------------*/
+
 #define THROW_UTIL(message) \
     std::cerr << std::string(__FILE__) << "::" << std::string(std::to_string(__LINE__)) << ": " << std::string(message) << std::endl; \
     exit(1);
