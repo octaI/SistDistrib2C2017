@@ -1,5 +1,6 @@
 #include "../constants.h"
 
+
 #ifndef DISTRIBUIDOS_MESSAGE_H
 #define DISTRIBUIDOS_MESSAGE_H
 

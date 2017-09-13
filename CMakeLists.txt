@@ -4,7 +4,7 @@ project(distribuidos)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 add_library(common
-        src/ipc/queue.cpp src/ipc/communicationqueue.cpp )
+        src/ipc/queue.cpp src/ipc/communicationqueue.cpp src/db/sqlite3.c)
 
 add_subdirectory("src/utils")
 add_subdirectory("src/cinema")
