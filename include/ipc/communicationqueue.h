@@ -11,13 +11,16 @@ typedef struct {
     unsigned int id_firstqueue;
     unsigned int id_secondqueue;
     int orientation;
+    int id;
 } commqueue;
 
 commqueue create_commqueue(std::string filename, char key_char);
 
-void send_message(commqueue channel, q_message output);
+void send_message(commqueue channel, q_message message);
 
-q_message receive_message(commqueue channel, long message_type );
+q_message receive_message(commqueue channel, int m_type);
+
+q_message receive_message(commqueue channel);
 
 void delete_queue(commqueue channel);
 
