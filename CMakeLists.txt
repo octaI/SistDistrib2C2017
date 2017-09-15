@@ -13,7 +13,7 @@ add_library(common
 
 add_library(cinema-common
         src/db/sqlite3.c include/db/sqlite3.h include/db/sqlite3ext.h
-        )
+        include/cinema/cinema_handler.h src/cinema/cinema_handler.cpp)
 
 add_subdirectory("src/utils")
 add_subdirectory("src/cinema")

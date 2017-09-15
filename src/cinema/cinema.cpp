@@ -7,6 +7,8 @@
 #include <cstring>
 #include <messages/message.h>
 #include <ipc/communicationqueue.h>
+#include <constants.h>
+#include <cinema/cinema_handler.h>
 #include "../../include/ipc/communicationqueue.h"
 
 
@@ -28,7 +30,6 @@ void send_confirmation(commqueue communication, int client_id) {
     q_message confirmation{};
     confirmation.message_type = client_id;
     confirmation.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
-    confirmation.message_choice.m2.connection_accepted = 1;
     send_message(communication,confirmation);
     printf("[CINEMA] Connected with CLIENT %d\n", client_id);
 }
@@ -46,23 +47,17 @@ void cinema_listen_client(commqueue communication, int client_id) {
         //  std::string request from queue (from client)
         q_message request = receive_message(communication);
         printf("[CINEMA] [RECEIVE MESSAGE FROM CLIENT %d] MSG_CHOICE: %d\n",request.message_type, (int)request.message_choice_number);
-        if (request.message_choice_number == 0) {
-            printf("\tMESSAGE: \"%s\"\n",request.message_choice.m0.test_msg);
-        }
 
         //2 - Process message
-        //  std::message response = cinema_process_message(message)
-
         //2.1 - Generate response after process
-        q_message response{};
-        response.message_choice_number = 0;
-        strcpy(response.message_choice.m0.test_msg,"Mock response");
+        q_message response = cinema_handle(request, &exit);
 
 
         //3 - Send response
         //  queue send response to clien
         send_message(communication,response);
     }
+    printf("[CINEMA] Finish communication with CLIENT %d", client_id);
 }
 
 void cinema_start() {
