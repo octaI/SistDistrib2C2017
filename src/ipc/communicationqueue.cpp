@@ -4,6 +4,7 @@
 #include <iostream>
 #include <ipc/communicationqueue.h>
 #include <messages/message.h>
+#include <constants.h>
 
 #define UNDEFINED_ID -1
 

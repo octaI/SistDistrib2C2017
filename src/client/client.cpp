@@ -78,7 +78,7 @@ void client_start() {
     q_message room_information = receive_message(cinema_communication);
     if (room_information.message_choice_number != CHOICE_SEATS_RESPONSE) {
         printf("[CLIENT] Unexpected Error after CHOICE_SEATS_REQUEST");
-        goto select_room
+        goto select_room;
     }
     //3.1 fork listener
     client_start_async_seat_listener(client_id);
@@ -91,7 +91,7 @@ void client_start() {
         printf("Seat id: %d | STATUS: %s\n", seat_id, status.c_str());
     }
     //3.3 option to see information and option to select
-    int selected_seat_id = 0;
+    int selected_seat_id = 3;
     //3.4-a if see information refresh and show seeting information
     //3,4-b else request to select seat
     q_message seat_select{};

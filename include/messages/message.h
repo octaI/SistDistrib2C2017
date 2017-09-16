@@ -70,18 +70,18 @@ typedef struct {
  * - Note: Some messages do not need more information than the type (choice_number) ej. CHOICE_ROOMS_REQUEST
  */
 //#define CHOICE_CONNECTION_REQUEST     1  not required because it has a specified type
-#define CHOICE_CONNECTION_ACCEPTED      2
-#define CHOICE_ROOMS_REQUEST            3
-#define CHOICE_ROOMS_RESPONSE           4
+#define CHOICE_CONNECTION_ACCEPTED 2
+#define CHOICE_ROOMS_REQUEST 3
+#define CHOICE_ROOMS_RESPONSE 4
 
-#define CHOICE_SEATS_REQUEST            5
-#define CHOICE_SEATS_RESPONSE           6
+#define CHOICE_SEATS_REQUEST 5
+#define CHOICE_SEATS_RESPONSE 6
 
-#define CHOICE_SEAT_SELECT_REQUEST      7
-#define CHOICE_SEAT_SELECT_RESPONSE     8
+#define CHOICE_SEAT_SELECT_REQUEST 7
+#define CHOICE_SEAT_SELECT_RESPONSE 8
 
-#define CHOICE_EXIT                     9
+#define CHOICE_EXIT 9
 
-#define CHOICE_INVALID_REQUEST          10
+#define CHOICE_INVALID_REQUEST 10
 
 #endif //DISTRIBUIDOS_MESSAGE_H
