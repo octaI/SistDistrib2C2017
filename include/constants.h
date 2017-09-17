@@ -29,6 +29,10 @@
 #define CINEMA_TO_CLIENT 1
 #define CLIENT_TO_CINEMA 0
 
-//TODO:
+#define ADMIN_TO_CINEMA 1
+
+/* ---Definition of message types constants---*/
+
+#define ADMIN_REQUEST 1l
 
 #endif //DISTRIBUIDOS_CONSTANTS_H

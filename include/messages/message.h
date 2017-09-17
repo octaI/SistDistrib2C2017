@@ -15,10 +15,12 @@ typedef struct {
     int client_id;
 } m1_connection_request;
 
+
 /* Definition of message pattern */
 
 typedef struct {
     int message_type;
+    int client_id;
     union {
         m0_test m0;
         m1_connection_request m1;
