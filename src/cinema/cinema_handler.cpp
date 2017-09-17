@@ -1,5 +1,7 @@
 #include <cstring>
 #include <vector>
+#include <cstdio>
+#include <messages/message.h>
 #include "../../include/cinema/cinema_handler.h"
 
 q_message cinema_handle(q_message message, int *exit) {
@@ -24,6 +26,7 @@ q_message cinema_handle(q_message message, int *exit) {
             response.message_choice.m2.count = (int)rooms_id.size();
             memset(response.message_choice.m2.ids,0,MAX_ROOMS);
             memcpy(response.message_choice.m2.ids,rooms_id.data(),rooms_id.size());
+            break;
         case CHOICE_SEATS_REQUEST:
             // Request to ADMIN and send user id, room_id.
             //      In this event user get into room and ADMIN send to user the seats
@@ -32,18 +35,23 @@ q_message cinema_handle(q_message message, int *exit) {
             memset(response.message_choice.m4.seats_id,0,MAX_SEATS);
             memcpy(response.message_choice.m4.seats_id,seats_id.data(),seats_id.size());
             memset(response.message_choice.m4.seats_status,0,MAX_SEATS);
-            memcpy(response.message_choice.m4.seats_status,seats_status.data(),seats_id.size());
+            memcpy(response.message_choice.m4.seats_status,seats_status.data(),seats_status.size());
+            break;
         case CHOICE_SEAT_SELECT_REQUEST:
             // Request to ADMIN and send user id, seat_id.
             response.message_choice_number = CHOICE_SEAT_SELECT_RESPONSE;
             response.message_choice.m6.success = SEAT_SELECTED_SUCCESS;
             memset(response.message_choice.m6.information,'\0',MAX_LENGTH);
             strcpy(response.message_choice.m6.information,"Selected seat success");
-        default:
-            response.message_choice_number = CHOICE_INVALID_REQUEST;
+            break;
         case CHOICE_EXIT:
             response.message_choice_number = CHOICE_EXIT;
             *exit = CINEMA_LISTENER_EXIT;
+            printf("Request exit\n");
+            break;
+        default:
+            response.message_choice_number = CHOICE_INVALID_REQUEST;
+            break;
     }
 
     return response;

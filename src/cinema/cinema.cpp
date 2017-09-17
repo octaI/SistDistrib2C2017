@@ -46,16 +46,16 @@ void cinema_listen_client(commqueue communication, int client_id) {
         //1 - Receive message from queue (client id)
         //  std::string request from queue (from client)
         q_message request = receive_message(communication);
-        printf("[CINEMA] [RECEIVE MESSAGE FROM CLIENT %d] MSG_CHOICE: %d\n",request.message_type, (int)request.message_choice_number);
+        printf("[CINEMA] [RECEIVE MESSAGE FROM CLIENT %d] MSG_CHOICE: %d\n",client_id, (int)request.message_choice_number);
 
         //2 - Process message
         //2.1 - Generate response after process
         q_message response = cinema_handle(request, &exit);
 
-
         //3 - Send response
         //  queue send response to clien
         send_message(communication,response);
+        printf("[CINEAM] Response sended to CLIENT %d\n",communication.id);
     }
     printf("[CINEMA] Finish communication with CLIENT %d", client_id);
 }

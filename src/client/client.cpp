@@ -5,7 +5,9 @@
 #include <messages/message.h>
 #include <ipc/communicationqueue.h>
 #include <constants.h>
-#include "../../include/ipc/communicationqueue.h"
+
+#define MAX_CLIENT_INPUT 10
+#define REFRESH_SEATS -500
 
 int client_connect_to_cinema(commqueue communication) {
     auto client_id = (int)getpid();
@@ -39,8 +41,39 @@ void client_end_async_seat_listener() {
 
 }
 
-int select_room() {
-    return 0;
+int client_select_room() {
+    char str[MAX_CLIENT_INPUT];
+
+    printf("Enter a id of ROOM: ");
+    scanf("%s\n", str);
+
+    int room_id = atoi(str);
+
+    printf("You Select ROOM %d\nPress <<Enter>> to continue",room_id);
+    scanf("%s\n", str);
+    printf("\n");
+    return room_id;
+}
+
+int client_select_seat() {
+    char str[MAX_CLIENT_INPUT];
+
+    printf("Enter a id of SEAT or <<Refresh>> to reload: ");
+    scanf("%s\n", str);
+    if (strcmp(str,"Refresh") == 0 || strcmp(str,"refresh") == 0) {
+        return REFRESH_SEATS;
+    }
+    int room_id = atoi(str);
+
+    printf("\nYou Select SEAT %d\nPress <<Enter>> to continue",room_id);
+    fgets(str, sizeof str, stdin); //Only to press ENTER
+    return room_id;
+}
+
+void ____print_sleep(const std::string &message) {
+    printf("%s\n",message.c_str());
+    char s[200];
+    fgets(s, sizeof s, stdin);
 }
 
 void client_start() {
@@ -50,8 +83,10 @@ void client_start() {
     int client_id = client_connect_to_cinema(cinema_communication);
     cinema_communication.id = client_id;
 
+
     //1.1 request rooms
-    room_request:
+    Room_Request:
+    //____print_sleep("PIDO ROOMS?");
     q_message rooms_request{};
     rooms_request.message_choice_number = CHOICE_ROOMS_REQUEST;
     send_message(cinema_communication,rooms_request);
@@ -59,8 +94,8 @@ void client_start() {
     //1.2 show rooms
     q_message rooms = receive_message(cinema_communication);
     if ( rooms.message_choice_number != CHOICE_ROOMS_RESPONSE ) {
-        printf("[CLIENT] Unexpected Error after CHOICE_ROOMS_REQUEST");
-        goto room_request;
+        printf("[CLIENT] Unexpected Error after CHOICE_ROOMS_REQUEST\n");
+        goto Room_Request;
     }
 
     for (int room_index = 0; room_index < rooms.message_choice.m2.count; room_index++) {
@@ -68,8 +103,11 @@ void client_start() {
     }
 
     //2 select room
-    select_room:
-    int room_id = select_room();
+    Select_Room:
+    int room_id = client_select_room();
+
+    //____print_sleep("ELIJO ROOM");
+
     q_message select_room_message{};
     select_room_message.message_choice_number = CHOICE_SEATS_REQUEST;
     select_room_message.message_choice.m3.room_id = room_id;
@@ -77,11 +115,13 @@ void client_start() {
 
     q_message room_information = receive_message(cinema_communication);
     if (room_information.message_choice_number != CHOICE_SEATS_RESPONSE) {
-        printf("[CLIENT] Unexpected Error after CHOICE_SEATS_REQUEST");
-        goto select_room;
+        printf("[CLIENT] Unexpected Error after CHOICE_SEATS_REQUEST\n");
+        goto Select_Room;
     }
+
     //3.1 fork listener
-    client_start_async_seat_listener(client_id);
+    Start_Seat_Listener:
+    //client_start_async_seat_listener(client_id);
 
     //3.2 show room seating information
     for (int seat_index = 0; seat_index < room_information.message_choice.m4.count; seat_index++) {
@@ -90,9 +130,14 @@ void client_start() {
         std::string status = (seat_status == SEAT_STATUS_FREE) ? "Free" : "Occupped";
         printf("Seat id: %d | STATUS: %s\n", seat_id, status.c_str());
     }
+
+    Seat_Select:
     //3.3 option to see information and option to select
-    int selected_seat_id = 3;
+    int selected_seat_id = client_select_seat();
     //3.4-a if see information refresh and show seeting information
+    if (selected_seat_id == REFRESH_SEATS) {
+        goto Start_Seat_Listener;
+    }
     //3,4-b else request to select seat
     q_message seat_select{};
     seat_select.message_choice_number = CHOICE_SEAT_SELECT_REQUEST;
@@ -102,13 +147,16 @@ void client_start() {
     //4.0 If not succes goto 3
     q_message seat_select_response = receive_message(cinema_communication);
     if (seat_select_response.message_choice_number != CHOICE_SEAT_SELECT_RESPONSE) {
-        printf("[CLIENT] Unexpected error when select seat");
+        printf("[CLIENT] Unexpected error when select seat\n");
+        goto Seat_Select;
     }
     if (seat_select_response.message_choice.m6.success != SEAT_SELECTED_SUCCESS) {
         char* information = seat_select_response.message_choice.m6.information;
-        printf("Error on select seat: %s",information);
+        printf("Error on select seat: %s\n",information);
+        goto Seat_Select;
     }
 
+    //client_end_async_seat_listener();
 
     //4.1 else show seating information and exit.
     printf("SUCCESS: Selected SEAT: %d in ROOM %d\n",selected_seat_id, room_id);
