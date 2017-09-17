@@ -12,7 +12,7 @@ add_library(common
         )
 
 add_library(cinema-common
-        src/db/sqlite3.c include/db/sqlite3.h include/db/sqlite3ext.h)
+        src/db/sqlite3.c include/db/sqlite3.h include/db/sqlite3ext.h
         src/ipc/queue.cpp src/ipc/communicationqueue.cpp src/db/sqlite3.c src/db/db_api.cpp)
 
 add_subdirectory("src/utils")
