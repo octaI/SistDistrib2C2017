@@ -1,9 +1,6 @@
 #ifndef DISTRIBUIDOS_CONSTANTS_H
 #define DISTRIBUIDOS_CONSTANTS_H
 
-/* definition of general constants */
-
-#define MAX_LENGTH 500
 
 /* -------------------------------------------------------*/
 
