@@ -122,6 +122,7 @@ int db_insert_reservations_test(){
     callback_func my_func = show_select_reservations_callback;
     sql_testquery = "SELECT * FROM Reservations";
     sqlite3_exec(handle,sql_testquery.c_str(),my_func,&data,&q_errmsg);
+    db_delete(handle,TEST_DB_FILENAME);
 }
 int main(){
     std::cout << "Initiating DB tests" << std::endl;
