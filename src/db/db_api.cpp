@@ -108,6 +108,42 @@ int db_insert_seats(sqlite3 *&database, int roomid, int seatid ){
     return rc;
 }
 
+static int db_select_singlevalue_callback(void *data,int argc,char** argv,char** col_name){
+    std::vector<int> *data_as_array = reinterpret_cast<std::vector<int> *>(data);
+    data_as_array->push_back(atoi(argv[0]));
+    return 0;
+}
+
+std::vector<int> db_select_room(sqlite3 *&database){
+    std::vector<int> res_vec = {};
+    char *q_errmsg = 0;
+    std::string sql_query = "SELECT id FROM Rooms;";
+    callback_func my_func = db_select_singlevalue_callback;
+    sqlite3_exec(database,sql_query.c_str(),my_func,&res_vec,&q_errmsg);
+
+    return res_vec;
+}
+
+std::vector<int> db_select_room_seats(sqlite3 *database, int roomid){
+    std::vector<int> res_vec = {};
+    char *q_errmsg = 0;
+    std::string sql_query = "SELECT seat_id FROM Seats WHERE room_id =" + std::to_string(roomid)+ ";";
+    callback_func my_func = db_select_singlevalue_callback;
+    sqlite3_exec(database,sql_query.c_str(),my_func,&res_vec,&q_errmsg);
+    return res_vec;
+}
+
+std::vector<int> db_select_reservations(sqlite3* database, int roomid) {
+    std::vector<int> res_vec = {};
+    char *q_errmsg = 0;
+    std::string sql_query = "SELECT seat_id FROM Reservations WHERE room_id =" + std::to_string(roomid) + ";";
+    callback_func my_func = db_select_singlevalue_callback;
+    sqlite3_exec(database,sql_query.c_str(),my_func,&res_vec,&q_errmsg);
+
+    return res_vec;
+}
+
+
 void db_delete(sqlite3 *&database, std::string filename){
     if (database == NULL) return;
     if(remove(filename.c_str()) != 0) {

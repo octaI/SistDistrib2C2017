@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string>
 #include <cstring>
-
+#include <vector>
 typedef int (*callback_func) (void*,int,char**,char**);
 
 void db_create(sqlite3 *&database,std::string filename);
@@ -21,8 +21,9 @@ int db_insert_seats(sqlite3 *&database, int roomid, int seatid);
 int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid);
 
 void db_select_user(sqlite3 *database, int userid);
-void db_select_room(sqlite3 *database,int roomid);
-void db_select_reservation(sqlite3 *database, int userid, int roomid);
+std::vector<int> db_select_room(sqlite3 *&database);
+std::vector<int> db_select_room_seats(sqlite3 *database,int roomid);
+std::vector<int> db_select_reservations(sqlite3 *database,int roomid);
 
 
 
