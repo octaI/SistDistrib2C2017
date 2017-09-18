@@ -1,7 +1,5 @@
-#include <constants.h>
 #include <string>
 #include <iostream>
-#include <cstdlib>
 #include "../../include/db/db_api.h"
 
 int execute_query(sqlite3 *database, std::string sql_query,callback_func callback, void* data, char* q_errmsg){
@@ -84,6 +82,8 @@ int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid
 
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
+
+    return rc;
 }
 
 int db_insert_room(sqlite3 *&database){
