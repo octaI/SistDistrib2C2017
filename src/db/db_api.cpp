@@ -49,7 +49,7 @@ void db_initialize(sqlite3 *&database) {
             "user_id integer NOT NULL,"\
             "room_id integer NOT NULL,"\
             "seat_id integer NOT NULL,"\
-            "reservation_date DATETIME DEFAULT CURRENT_TIMESTAMP,"\
+            "reservation_date DATETIME DEFAULT(STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),"\
             "FOREIGN KEY(user_id) REFERENCES Users(id),"\
             "FOREIGN KEY(room_id,seat_id) REFERENCES Seats(room_id,seat_id),"\
             "PRIMARY KEY(user_id,room_id,seat_id,reservation_date));";
@@ -73,7 +73,7 @@ int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid
     char *q_errmsg= 0;
     const char *zSql;
     sqlite3_stmt *stmt;
-    std::string sql_query = "INSERT INTO Reservations VALUES(?,?,?,CURRENT_TIMESTAMP)";
+    std::string sql_query = "INSERT INTO Reservations(user_id,room_id,seat_id) VALUES(?,?,?)";
     int rc = sqlite3_prepare(database,sql_query.c_str(),strlen(sql_query.c_str()),&stmt,&zSql);
 
     if (rc == SQLITE_OK) {
