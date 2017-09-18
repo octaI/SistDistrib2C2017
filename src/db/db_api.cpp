@@ -99,7 +99,7 @@ int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid
 int db_insert_room(sqlite3 *&database){
     char *q_errmsg = 0;
     std::string sql_query = "INSERT INTO Rooms VALUES(null);";
-    return execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
+    return (execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg) != SQLITE_OK);
 }
 
 int db_insert_seats(sqlite3 *&database, int roomid, int seatid ){
@@ -115,7 +115,7 @@ int db_insert_seats(sqlite3 *&database, int roomid, int seatid ){
     }
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-    return rc;
+    return (rc != SQLITE_OK);
 }
 
 static int db_select_singlevalue_callback(void *data,int argc,char** argv,char** col_name){
@@ -139,7 +139,7 @@ int db_insert_user_in_room(sqlite3 *&database, int userid, int roomid) {
     std::string sql_query = "INSERT INTO Clients_rooms(user_id,room_id) VALUES(" + std::to_string(userid) + ","
                             + std::to_string(roomid) + ");";
 
-    return execute_query(database,sql_query,NULL,NULL,q_errmsg);
+    return (execute_query(database,sql_query,NULL,NULL,q_errmsg) != SQLITE_OK);
 }
 
 int db_remove_user_in_room(sqlite3 *&database, int userid){

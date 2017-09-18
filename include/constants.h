@@ -20,6 +20,9 @@
 #define QUEUE_CLIENT_FILE "/bin/bash"
 #define QUEUE_CLIENT_CHAR 'k'
 
+#define QUEUE_ADMIN_CLIENT_FILE "/bin/bash"
+#define QUEUE_ADMIN_CLIENT_CHAR 'u'
+
 #define SHM_CLIENT_FILE "/bin/bash"
 #define SHM_CLIENT_CHAR 'p'
 #define SHM_CLIENT_SIZE sizeof(int)

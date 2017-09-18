@@ -31,10 +31,10 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
                 response.message_choice_number = CHOICE_INVALID_REQUEST;
                 break;
             }
-            std::vector<int> seat_status(seat_ids.size(),0);
+            std::vector<int> seat_status(seat_ids.size(),SEAT_STATUS_FREE);
             taken_seats = db_select_reservations(handle,request.message_choice.m3.room_id);
             for  (auto &index : taken_seats ) {
-                seat_status[index] = 1;
+                seat_status[index-1] = SEAT_STATUS_OCCUPED;
             }
             response.message_choice_number = CHOICE_SEATS_RESPONSE;
             response.message_choice.m4.count = (int)seat_ids.size();
@@ -43,9 +43,49 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
         }
 
         case CHOICE_SEAT_SELECT_REQUEST: {
-            //db_insert_reservation(handle,request.message_choice.m5.seat_id,request.message_choice.m5.)
+            int current_room = db_select_user_current_room(handle,request.client_id);
+            if(current_room == 0) { //client not in any room
+                response.message_choice_number = CHOICE_INVALID_REQUEST;
+                break;
+            }
+            if(!db_insert_reservation(handle,request.client_id,current_room,request.message_choice.m5.seat_id)){
+                response.message_choice_number = CHOICE_SEAT_SELECT_RESPONSE;
+                response.message_choice.m6.success = NOT_SUCCESS;
+                strcpy(response.message_choice.m6.information,sqlite3_errmsg(handle));
+                break;
+            }
+            db_remove_user_in_room(handle,request.client_id);
+            commqueue client_channel = create_commqueue(QUEUE_ADMIN_CLIENT_FILE,QUEUE_ADMIN_CLIENT_CHAR);
+            std::vector<int> users_to_update = db_select_users_in_room(handle,current_room);
+            if ( users_to_update.size() >=1) {
+                std::vector<int> seats = db_select_room_seats(handle,current_room);
+                std::vector<int> taken_seats = db_select_reservations(handle,current_room);
+                std::vector<int> seat_status(seats.size(),SEAT_STATUS_FREE);
+                for (auto &index: taken_seats) {
+                    seat_status[index-1] = SEAT_STATUS_OCCUPED;
+                }
+                for (auto userid : users_to_update){
+                    q_message update_msg;
+                    update_msg.client_id = userid;
+                    update_msg.message_choice_number = CHOICE_SEATS_RESPONSE;
+                    update_msg.message_choice.m4.success = SUCCESS;
+                    std::copy(seats.begin(),seats.end(),update_msg.message_choice.m4.seats_id);
+                    std::copy(seat_status.begin(),seat_status.end(),update_msg.message_choice.m4.seats_status);
+                    send_message(client_channel,update_msg);
+                }
+            }
+            response.client_id = request.client_id;
+            response.message_choice_number = CHOICE_SEAT_SELECT_RESPONSE;
+            response.message_choice.m6.success = SUCCESS;
+            std::string succ_msg = "Succesfully made seat reservation";
+            strcpy(response.message_choice.m6.information,succ_msg.c_str());
+            }
+        default: {
+            response.message_choice_number = CHOICE_INVALID_REQUEST;
         }
     }
+
+    send_message(channel,response);
 }
 
 void admin_listen_requests(sqlite3 *handle,commqueue channel){
