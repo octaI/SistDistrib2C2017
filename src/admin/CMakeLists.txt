@@ -8,4 +8,8 @@ add_executable(admin
         admin.cpp # main()
         )
 
-target_link_libraries(admin cinema-common common)
+target_link_libraries(admin
+        cinema-common
+        common
+        dl
+        pthread)

@@ -38,7 +38,7 @@
 
 /* ---Definition of message types constants---*/
 
-#define ADMIN_REQUEST 1l
+#define ADMIN_REQUEST 1
 
 #define DATABASE_FILENAME "main_db.db"
 

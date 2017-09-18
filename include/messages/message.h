@@ -43,6 +43,7 @@ typedef struct {
 
 typedef struct {
     int seat_id;
+
 } m5_seats_select;
 
 typedef struct {

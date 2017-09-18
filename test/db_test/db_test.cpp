@@ -196,17 +196,49 @@ int db_select_room_seats_test(){
     res_vec = db_select_room_seats(handle,1); // [1 2 3 4 5]
     show_vector(res_vec);
     show_vector(db_select_room_seats(handle,2));// [1 2]
+    db_delete(handle,TEST_DB_FILENAME);
     return 0;
+}
+
+int db_select_users_in_room_test() {
+    std::vector<int> res_vec = {};
+    char *q_errmsg = 0;
+    const char* data = "Callback function called";
+    sqlite3* handle;
+    db_create(handle,TEST_DB_FILENAME);
+    db_initialize(handle);
+    for (int i = 0; i < 5; i++) {
+        db_insert_user(handle);
+    }
+    for (int i = 0; i <3;i++){
+        if(db_insert_room(handle) != SQLITE_OK || db_insert_user(handle)) std::cout << sqlite3_errmsg(handle) << std::endl;
+    }
+    for (int i = 0; i <5;i++){
+        if (db_insert_seats(handle,1,i+1) != SQLITE_OK) std::cerr << sqlite3_errmsg(handle) << std::endl;
+    }
+
+    db_insert_user_in_room(handle,1,1);
+    db_insert_user_in_room(handle,2,1);
+    db_insert_user_in_room(handle,3,2);
+
+    show_vector(db_select_users_in_room(handle,1)); // [1 2]
+    show_vector(db_select_users_in_room(handle,2)); // [ 3 ]
+
+    db_remove_user_in_room(handle,2);
+    show_vector(db_select_users_in_room(handle,1)); // [ 1 ]
+
+    db_delete(handle,TEST_DB_FILENAME);
 }
 int main(){
     std::cout << "Initiating DB tests" << std::endl;
-    db_create_test();
+    /*db_create_test();
     db_insert_user_test();
     db_insert_room_test();
     db_insert_seats_test();
     db_insert_reservations_test();
     db_select_room_test();
     db_select_room_seats_test();
-    db_select_reservations_test();
+    db_select_reservations_test();*/
+    db_select_users_in_room_test();
     return 0;
 }
