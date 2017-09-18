@@ -32,4 +32,6 @@
 
 #define ADMIN_REQUEST 1l
 
+#define DATABASE_FILENAME "main_db.db"
+
 #endif //DISTRIBUIDOS_CONSTANTS_H
