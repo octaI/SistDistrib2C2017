@@ -10,5 +10,16 @@ int main(){
     db_insert_room(handler);
     db_insert_room(handler);
     db_insert_room(handler);
+    for (int i = 0; i<20; i++){
+        db_insert_seats(handler,1,i+1);
+    }
+    for (int i = 0; i<10; i++){
+        db_insert_seats(handler,2,i+1);
+    }
+    for (int i =0; i<15;i++){
+        db_insert_seats(handler,3,i+1);
+    }
+    sqlite3_close(handler);
+    return 0;
 }
 
