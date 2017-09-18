@@ -89,6 +89,7 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
 }
 
 void admin_listen_requests(sqlite3 *handle,commqueue channel){
+    std::cout << "WAITING FOR AN INCOMING REQUEST" << std::endl;
     q_message client_req = receive_message(channel,ADMIN_REQUEST);
     //received a request
     if (fork() == 0) { //forking to handle request
