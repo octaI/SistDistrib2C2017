@@ -231,14 +231,14 @@ int db_select_users_in_room_test() {
 }
 int main(){
     std::cout << "Initiating DB tests" << std::endl;
-    /*db_create_test();
+    db_create_test();
     db_insert_user_test();
     db_insert_room_test();
     db_insert_seats_test();
     db_insert_reservations_test();
     db_select_room_test();
     db_select_room_seats_test();
-    db_select_reservations_test();*/
+    db_select_reservations_test();
     db_select_users_in_room_test();
     return 0;
 }
