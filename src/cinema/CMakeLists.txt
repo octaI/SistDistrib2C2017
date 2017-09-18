@@ -9,4 +9,4 @@ add_executable(cinema
         cinema_handler.cpp
         )
 
-target_link_libraries(cinema common)
+target_link_libraries(cinema cinema-common common)

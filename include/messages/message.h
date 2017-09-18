@@ -10,8 +10,8 @@
 #define SEAT_STATUS_FREE 0
 #define SEAT_STATUS_OCCUPED 1
 
-#define SEAT_SELECTED_SUCCESS 0
-#define SEAT_SELECTED_NOT_SUCCESS 1
+#define NOT_SUCCESS 1
+#define SUCCESS 0
 
 /* Definition message */
 
@@ -35,6 +35,8 @@ typedef struct {
 
 typedef struct {
     int count;
+    short success;
+    char information[MAX_LENGTH];
     int seats_id[MAX_SEATS];
     int seats_status[MAX_SEATS];
 } m4_seats;

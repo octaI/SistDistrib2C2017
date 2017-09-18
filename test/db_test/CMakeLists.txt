@@ -7,7 +7,7 @@ add_executable(dbtest
         )
 
 target_link_libraries(dbtest
-        common
+        cinema-common
         dl
         pthread
         )
