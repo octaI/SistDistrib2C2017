@@ -150,6 +150,13 @@ int db_remove_user_in_room(sqlite3 *&database, int userid){
     return execute_query(database,sql_query,NULL,NULL,q_errmsg);
 }
 
+int db_select_user_current_room(sqlite3 *&database, int userid){
+    std::vector<int> res = {};
+    char *q_errmsg = 0;
+    std::string sql_query = "SELECT room_id FROM Clients_Rooms WHERE user_id=" + std::to_string(userid) + ";";
+    execute_query(database,sql_query.c_str(),db_select_singlevalue_callback,&res,q_errmsg);
+    return res.front();
+}
 std::vector<int> db_select_users_in_room(sqlite3 *&database, int roomid) {
     std::vector<int> res = {};
     char *q_errmsg = 0;
