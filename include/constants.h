@@ -20,6 +20,14 @@
 #define QUEUE_CLIENT_FILE "/bin/bash"
 #define QUEUE_CLIENT_CHAR 'k'
 
+#define SHM_CLIENT_FILE "/bin/bash"
+#define SHM_CLIENT_CHAR 'p'
+#define SHM_CLIENT_SIZE sizeof(int)
+
+
+#define SHM_CINEMA_TIMER_FILE "/bin/bash"
+#define SHM_CINEMA_TIMER_CHAR 't'
+#define SHM_CINEMA_TIMER_SIZE sizeof(int)
 
 /* ---Definition of channel constants between known communications in the system */
 
