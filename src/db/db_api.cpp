@@ -87,10 +87,7 @@ int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid
         sqlite3_bind_int(stmt,3,seatid);
     }
 
-    if (sqlite3_step(stmt) == SQLITE_ERROR) {
-        std::cerr << sqlite3_errmsg(database) << std::endl;
-        return -1;
-    }
+    sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 
     return 0;
@@ -115,7 +112,7 @@ int db_insert_seats(sqlite3 *&database, int roomid, int seatid ){
     }
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-    return (rc != SQLITE_OK);
+    return 0;
 }
 
 static int db_select_singlevalue_callback(void *data,int argc,char** argv,char** col_name){

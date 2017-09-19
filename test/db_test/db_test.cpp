@@ -163,10 +163,10 @@ int db_select_reservations_test(){
     db_create(handle,TEST_DB_FILENAME);
     db_initialize(handle);
     for (int i = 0; i <3;i++){
-        if(db_insert_room(handle) != SQLITE_OK || db_insert_user(handle)) std::cout << sqlite3_errmsg(handle) << std::endl;
+        if(db_insert_room(handle) != SQLITE_OK || db_insert_user(handle));
     }
     for (int i = 0; i <3;i++){
-        if (db_insert_seats(handle,1,i+1) != SQLITE_OK) std::cerr << sqlite3_errmsg(handle) << std::endl;
+        if (db_insert_seats(handle,1,i+1) == SQLITE_OK);
     }
 
     db_insert_reservation(handle,1,1,1);
@@ -212,7 +212,7 @@ int db_select_users_in_room_test() {
         db_insert_user(handle);
     }
     for (int i = 0; i <3;i++){
-        if(db_insert_room(handle) != SQLITE_OK || db_insert_user(handle)) std::cout << sqlite3_errmsg(handle) << std::endl;
+        db_insert_room(handle);
     }
     for (int i = 0; i <5;i++){
         if (db_insert_seats(handle,1,i+1) != SQLITE_OK) std::cerr << sqlite3_errmsg(handle) << std::endl;

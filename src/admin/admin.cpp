@@ -8,6 +8,14 @@
 #include "../../include/constants.h"
 #include "../../include/messages/message.h"
 
+
+void show_vector(std::vector<int> result){
+    for ( auto i = result.begin(); i != result.end(); i++){
+        std::cout << *i << " ";
+    }
+    std::cout << std::endl;
+}
+
 void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
     q_message response{};
     response.client_id = request.client_id;
@@ -43,13 +51,20 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
             }
             std::vector<int> seat_status(seat_ids.size(),SEAT_STATUS_FREE);
             taken_seats = db_select_reservations(handle,request.message_choice.m3.room_id);
+            std::cout << "[ADMIN-CINEMA] This is the taken seats Vector " ;
+            show_vector(taken_seats);
+
+            std::cout << "[ADMIN-CINEMA] Seat status vector length: " << seat_status.size() << std::endl;
             for  (auto &index : taken_seats ) {
+                std::cout << "SEAT " << index << "IS TAKEN"  << std::endl;
                 seat_status[index-1] = SEAT_STATUS_OCCUPED;
             }
+            show_vector(seat_status);
             response.message_choice_number = CHOICE_SEATS_RESPONSE;
             response.message_choice.m4.count = (int)seat_ids.size();
             std::copy(seat_ids.begin(),seat_ids.end(),response.message_choice.m4.seats_id);
-            std::copy(taken_seats.begin(),taken_seats.end(),response.message_choice.m4.seats_status);
+            std::copy(seat_status.begin(),seat_status.end(),response.message_choice.m4.seats_status);
+            db_insert_user_in_room(handle,request.client_id,request.message_choice.m3.room_id);
             break;
         }
 
