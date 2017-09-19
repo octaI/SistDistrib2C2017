@@ -11,7 +11,7 @@ int main(){
     db_initialize(handler);
 
     //db_insert_user(handler);
-    //db_insert_user(handler);
+    db_insert_user(handler);
     db_insert_room(handler);
     db_insert_room(handler);
     db_insert_room(handler);
