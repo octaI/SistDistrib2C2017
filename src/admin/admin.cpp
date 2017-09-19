@@ -81,7 +81,7 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
                 printf("[CINEMA-ADMIN] Error on generate reservation to CLIENT %d\n",response.client_id);
                 response.message_choice_number = CHOICE_SEAT_SELECT_RESPONSE;
                 response.message_choice.m6.success = NOT_SUCCESS;
-                strcpy(response.message_choice.m6.information,sqlite3_errmsg(handle));
+                strcpy(response.message_choice.m6.information,"You have entered an invalid seat. ");
                 break;
             }
             printf("PASO 3\n");
@@ -113,6 +113,7 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
             }
             printf("PASO 4\n");
             printf("[CINEMA-ADMIN] Reservation succesfully made to client %d\n", response.client_id);
+            db_remove_user_in_room(handle,request.client_id);
             response.client_id = request.client_id;
             response.message_choice_number = CHOICE_SEAT_SELECT_RESPONSE;
             response.message_choice.m6.success = SUCCESS;

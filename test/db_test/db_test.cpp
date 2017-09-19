@@ -103,7 +103,7 @@ int db_insert_seats_test(){
 
     }
     db_insert_seats(handle,1,4);
-    if(db_insert_seats(handle,1,5) != SQLITE_OK) std::cout << sqlite3_errmsg(handle);
+    if(db_insert_seats(handle,1,5) == SQLITE_OK) std::cout << sqlite3_errmsg(handle);
 
     sql_testquery = "SELECT * FROM Seats;";
     callback_func my_func = show_select_seats_callback;
@@ -119,13 +119,14 @@ int db_insert_reservations_test(){
     db_create(handle,TEST_DB_FILENAME);
     db_initialize(handle);
     for (int i = 0; i <3;i++){
-        if(db_insert_room(handle) != SQLITE_OK || db_insert_user(handle)) std::cout << sqlite3_errmsg(handle) << std::endl;
+        if(db_insert_room(handle) != 1) std::cout << sqlite3_errmsg(handle) << std::endl;
     }
     for (int i = 0; i <3;i++){
-        if (db_insert_seats(handle,1,i+1) != SQLITE_OK) std::cerr << sqlite3_errmsg(handle) << std::endl;
+        if (db_insert_seats(handle,1,i+1) != 1) std::cerr << sqlite3_errmsg(handle) << std::endl;
     }
 
-    db_insert_reservation(handle,1,1,1);
+    std::cout << "FIRST TIME EXECUTING SAME RES " << db_insert_reservation(handle,1,1,1) << std::endl ;
+    std::cout << "SECOND TIME EXECUTING SAME RES " << db_insert_reservation(handle,1,1,1) << std::endl ;
     db_insert_reservation(handle,1,1,2);
     db_insert_reservation(handle,1,2,1);
     callback_func my_func = show_select_reservations_callback;
@@ -232,14 +233,17 @@ int db_select_users_in_room_test() {
 }
 int main(){
     std::cout << "Initiating DB tests" << std::endl;
-    db_create_test();
+    /*db_create_test();
     db_insert_user_test();
     db_insert_room_test();
     db_insert_seats_test();
-    db_insert_reservations_test();
-    db_select_room_test();
+    */
+     db_insert_reservations_test();
+
+   /* db_select_room_test();
     db_select_room_seats_test();
     db_select_reservations_test();
     db_select_users_in_room_test();
+    */
     return 0;
 }

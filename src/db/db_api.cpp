@@ -50,7 +50,7 @@ void db_initialize(sqlite3 *&database) {
             "reservation_date DATETIME DEFAULT(STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),"\
             "FOREIGN KEY(user_id) REFERENCES Users(id),"\
             "FOREIGN KEY(room_id,seat_id) REFERENCES Seats(room_id,seat_id),"\
-            "PRIMARY KEY(user_id,room_id,seat_id));"\
+            "PRIMARY KEY(room_id,seat_id));"\
             "CREATE TABLE IF NOT EXISTS Clients_rooms("\
             "user_id integer NOT NULL,"\
             "room_id integer NOT NULL,"\
@@ -71,32 +71,41 @@ int db_insert_user(sqlite3 *&database){
     char *q_errmsg = 0;
     std::string sql_query = "INSERT INTO Users VALUES(null);";
     int res = execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
+    if (res != SQLITE_OK){
+        std::cerr << sqlite3_errmsg(database) << " , " << q_errmsg << std::endl;
+        return -1;
+    }
     return (int)sqlite3_last_insert_rowid(database);
 }
 
 int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid) {
-    char *q_errmsg= 0;
-    const char *zSql;
-    sqlite3_stmt *stmt;
-    std::string sql_query = "INSERT INTO Reservations(user_id,room_id,seat_id) VALUES(?,?,?)";
-    int rc = sqlite3_prepare(database,sql_query.c_str(),strlen(sql_query.c_str()),&stmt,&zSql);
+    int rc;
+    if (seatid > 0) {
+        char *q_errmsg= 0;
+        const char *zSql;
+        sqlite3_stmt *stmt;
+        std::string sql_query = "INSERT INTO Reservations(user_id,room_id,seat_id) VALUES(?,?,?)";
+        rc = sqlite3_prepare(database,sql_query.c_str(),strlen(sql_query.c_str()),&stmt,&zSql);
 
-    if (rc == SQLITE_OK) {
-        sqlite3_bind_int(stmt,1,userid);
-        sqlite3_bind_int(stmt,2,roomid);
-        sqlite3_bind_int(stmt,3,seatid);
+        if (rc == SQLITE_OK) {
+            sqlite3_bind_int(stmt,1,userid);
+            sqlite3_bind_int(stmt,2,roomid);
+            sqlite3_bind_int(stmt,3,seatid);
+        }
+
+        sqlite3_step(stmt);
+        rc =sqlite3_finalize(stmt);
+    } else {
+        rc = -1;
     }
 
-    int res = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    
-    return (res == SQLITE_DONE);
+    return (rc == SQLITE_OK);
 }
 
 int db_insert_room(sqlite3 *&database){
     char *q_errmsg = 0;
     std::string sql_query = "INSERT INTO Rooms VALUES(null);";
-    return (execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg) != SQLITE_OK);
+    return (execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg) == SQLITE_OK);
 }
 
 int db_insert_seats(sqlite3 *&database, int roomid, int seatid ){
@@ -111,8 +120,8 @@ int db_insert_seats(sqlite3 *&database, int roomid, int seatid ){
         sqlite3_bind_int(stmt,2,seatid);
     }
     sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    return 0;
+    rc =sqlite3_finalize(stmt);
+    return (rc == SQLITE_OK);
 }
 
 static int db_select_singlevalue_callback(void *data,int argc,char** argv,char** col_name){
@@ -144,7 +153,7 @@ int db_remove_user_in_room(sqlite3 *&database, int userid){
     std::string userid_str = std::to_string(userid);
     std::string sql_query = "DELETE FROM Clients_rooms WHERE user_id="+userid_str+";";
 
-    return execute_query(database,sql_query,NULL,NULL,q_errmsg);
+    return (execute_query(database,sql_query,NULL,NULL,q_errmsg) == SQLITE_OK);
 }
 
 int db_select_user_current_room(sqlite3 *&database, int userid){
