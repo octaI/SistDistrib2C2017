@@ -54,20 +54,26 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
         }
 
         case CHOICE_SEAT_SELECT_REQUEST: {
+            printf("PASO 1\n");
             int current_room = db_select_user_current_room(handle,request.client_id);
             if(current_room == 0) { //client not in any room
+                printf("[CINEMA-HANDLER] ERROR: CLIENT %d not in room\n", request.client_id);
                 response.message_choice_number = CHOICE_INVALID_REQUEST;
                 break;
             }
+            printf("PASO 2\n");
             if(!db_insert_reservation(handle,request.client_id,current_room,request.message_choice.m5.seat_id)){
+                printf("[CINEMA-HANDLER] Error on generate reservation to CLIENT %d\n",response.client_id);
                 response.message_choice_number = CHOICE_SEAT_SELECT_RESPONSE;
                 response.message_choice.m6.success = NOT_SUCCESS;
                 strcpy(response.message_choice.m6.information,sqlite3_errmsg(handle));
                 break;
             }
+            printf("PASO 3\n");
             db_remove_user_in_room(handle,request.client_id);
             std::vector<int> users_to_update = db_select_users_in_room(handle,current_room);
             if (!users_to_update.empty()) {
+                printf("PASO 3.1\n");
                 commqueue client_channel = create_commqueue(QUEUE_ACTIVITY_FILE,QUEUE_ACTIVITY_CHAR);
                 std::vector<int> seats = db_select_room_seats(handle,current_room);
                 std::vector<int> taken_seats = db_select_reservations(handle,current_room);
@@ -85,11 +91,14 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
                     send_message(client_channel,update_msg);
                 }
             }
+            printf("PASO 4\n");
+            printf("[CINEMA-ADMIN] Reservation succesfully made to client %d\n", response.client_id);
             response.client_id = request.client_id;
             response.message_choice_number = CHOICE_SEAT_SELECT_RESPONSE;
             response.message_choice.m6.success = SUCCESS;
             std::string succ_msg = "Succesfully made seat reservation";
             strcpy(response.message_choice.m6.information,succ_msg.c_str());
+            break;
         }
 
         default: {

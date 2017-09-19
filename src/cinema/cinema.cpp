@@ -61,7 +61,6 @@ void* start_timer(commqueue communication) {
         int stop = 0;
         while (stop == 0) {
             sleep(15);
-            printf("[CINEMA-TIMER] [CLIENT %d] Checking timestamp\n", communication.id);
             int last_time_stamp = *static_cast<int*>(timer);
             auto timestamp = (int)time(nullptr);
             if (timestamp == TIMER_CLOSE) {
@@ -70,7 +69,7 @@ void* start_timer(commqueue communication) {
             }
             int difference = timestamp - last_time_stamp;
             if (difference > MAX_TIME_TO_WAIT_SECONDS) {
-                printf("[CINEMA-TIMER] [CLIENT %d] Request (as Client) to close cinema after %d seconds without request\n", communication.id , difference);
+                printf("[CINEMA-TIMER] [CLIENT %d] Close connectio %d seconds of client inactivity\n", communication.id , difference);
                 q_message exit_message{};
                 exit_message.message_choice_number = CHOICE_EXIT;
                 send_message(communication,exit_message);

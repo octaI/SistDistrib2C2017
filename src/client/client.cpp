@@ -174,7 +174,7 @@ void client_start() {
 
     int client_id = client_connect_to_cinema(cinema_communication);
     cinema_communication.id = client_id;
-
+    printf("Welcome CLIENT %d\n", client_id);
 
     //1.1 request rooms
     Room_Request:
