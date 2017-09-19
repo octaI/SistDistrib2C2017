@@ -7,6 +7,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 add_executable(cinema
         cinema.cpp # main()
         cinema_handler.cpp
+        ../admin/admin.cpp
         )
 
-target_link_libraries(cinema cinema-common common)
+target_link_libraries(cinema cinema-common common dl pthread)

@@ -1,5 +1,4 @@
 #include <cstdio>
-#include <sys/types.h>
 #include <unistd.h>
 #include <cstring>
 #include <messages/message.h>
@@ -27,8 +26,11 @@ int client_connect_to_cinema(commqueue communication) {
     send_message(communication,request_connect);
     printf("[CLIENT %d] Attemp to connect with cinema\n",client_id);
 
-    q_message response = receive_message(communication,client_id);
+    communication.id = client_id;
+    q_message response = receive_message(communication);
+
     if (response.message_choice_number == CHOICE_CONNECTION_ACCEPTED) {
+        client_id = response.message_choice.m1.client_id;
         printf("[CLIENT %d] Connection accepted\n",client_id);
     }
 
@@ -156,7 +158,7 @@ int client_select_seat() {
 
     printf("Enter a id of SEAT or <<(R)efresh>> to reload: ");
     fgets(str, sizeof str, stdin);
-    if (strcmp(str,"Refresh\n") == 0 || strcmp(str,"refresh\n") == 0 || strcmp(str,"r\n") || strcmp(str,"R\n")) {
+    if (strcmp(str,"Refresh\n") == 0 || strcmp(str,"refresh\n") == 0 || strcmp(str,"r\n") == 0 || strcmp(str,"R\n") == 0) {
         return REFRESH_SEATS;
     }
     int room_id = atoi(str);
@@ -211,7 +213,7 @@ void client_start() {
 
     //3.1 fork listener
     Start_Seat_Listener:
-    //commqueue client_communication = client_start_async_seat_listener(client_id);
+    commqueue client_communication = client_start_async_seat_listener(client_id);
 
     //3.2 show room seating information
     print_seats(
@@ -225,10 +227,9 @@ void client_start() {
     int selected_seat_id = client_select_seat();
     //3.4-a if see information refresh and show seeting information
     if (selected_seat_id == REFRESH_SEATS) {
-        /*
         if (update_seat_from_client(client_communication) == NOT_UPDATED) {
             goto Start_Seat_Listener;
-        }*/
+        }
         goto Seat_Select;
 
     }

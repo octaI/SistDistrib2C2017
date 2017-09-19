@@ -1,7 +1,6 @@
 #ifndef DISTRIBUIDOS_CONSTANTS_H
 #define DISTRIBUIDOS_CONSTANTS_H
 
-
 /* -------------------------------------------------------*/
 
 #define THROW_UTIL(message) \

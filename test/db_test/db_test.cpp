@@ -64,7 +64,8 @@ int db_insert_user_test() {
     db_create(handle,TEST_DB_FILENAME);
     db_initialize(handle);
     for (int i = 0; i <5;i++){
-        if(db_insert_user(handle) != SQLITE_OK) std::cout << sqlite3_errmsg(handle) << std::endl;
+        int last_id = db_insert_user(handle);
+        std::cout << "ID Insertado: " << i + 1 << " - ID devuelto: " << last_id << std::endl;
 
     }
     sql_testquery = "SELECT * FROM Users;";

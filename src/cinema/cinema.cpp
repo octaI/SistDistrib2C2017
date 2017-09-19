@@ -8,16 +8,40 @@
 #include <constants.h>
 #include <cinema/cinema_handler.h>
 #include <ipc/sharedmemory.h>
+#include <admin/admin.h>
+#include <iostream>
 
 #define TIMER_CLOSE (-134)
 #define MAX_TIME_TO_WAIT_SECONDS 100
 
-int cinema_take_client(commqueue communication) {
+void send_confirmation(commqueue communication, int client_id) {
+    q_message confirmation{};
+    confirmation.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
+    confirmation.message_choice.m1.client_id = client_id;
+    send_message(communication,confirmation);
+    printf("[CINEMA] Connected with CLIENT %d who send me with type %d\n", client_id, communication.id);
+}
+
+int cinema_take_client(commqueue client_communication, commqueue admin_communication) {
     //TAKE CLIENT FROM QUEUE
     printf("[CINEMA] Waiting connection request\n");
-    q_message message = receive_message(communication,TYPE_CONNECTION_REQUEST);
-    //Trivial to know message.message_type (unique)
+    q_message message = receive_message(client_communication,TYPE_CONNECTION_REQUEST);
     int client_id = message.message_choice.m1.client_id;
+    client_communication.id = client_id;
+
+    q_message register_client{};
+    register_client.client_id = client_id;
+    register_client.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
+    send_message(admin_communication, register_client);
+
+    admin_communication.id = client_id;
+    q_message register_response = receive_message(admin_communication);
+    if (register_response.message_choice_number != CHOICE_CONNECTION_ACCEPTED) {
+        THROW_UTIL("[CINEMA] Cannot register CLIENT " + std::to_string(client_id));
+    }
+    client_id = register_response.message_choice.m1.client_id;
+
+    send_confirmation(client_communication, client_id);
 
     pid_t pid;
     while ((pid = waitpid(-1, 0, WNOHANG)) > 1) {
@@ -26,19 +50,9 @@ int cinema_take_client(commqueue communication) {
     return client_id; //client_pid
 }
 
-void send_confirmation(commqueue communication, int client_id) {
-    q_message confirmation{};
-    confirmation.message_type = client_id;
-    confirmation.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
-    send_message(communication,confirmation);
-    printf("[CINEMA] Connected with CLIENT %d\n", client_id);
-}
-
 void* start_timer(commqueue communication) {
     void* timer = shm_get_data(SHM_CINEMA_TIMER_FILE, SHM_CINEMA_TIMER_CHAR, SHM_CINEMA_TIMER_SIZE);
     *static_cast<int*>(timer) = (int)time(nullptr);
-
-    printf("------- %d\n",*static_cast<int*>(timer));
 
     if (fork() == 0) {
         /* Set communication as client to simulate exit */
@@ -76,17 +90,16 @@ void* start_timer(commqueue communication) {
     return timer;
 }
 
-void cinema_listen_client(commqueue communication, int client_id) {
-    // Attendant for a client. I'm going to tell the client that he's being served
-    send_confirmation(communication,client_id);
-    communication.id = client_id;
 
-    void* timer = start_timer(communication);
+void cinema_listen_client(commqueue client_communication, commqueue admin_communication, int client_id) {
+    client_communication.id = client_id;
+
+    void* timer = start_timer(client_communication);
 
     int exit = 0;
     while (exit == 0) {
         //1 - Receive message from queue (client id)
-        q_message request = receive_message(communication);
+        q_message request = receive_message(client_communication);
         printf("[CINEMA] [RECEIVE MESSAGE FROM CLIENT %d] MSG_CHOICE: %d\n",client_id, (int)request.message_choice_number);
 
         //1-bis Update timer
@@ -94,31 +107,46 @@ void cinema_listen_client(commqueue communication, int client_id) {
 
         //2 - Process message
         //2.1 - Generate response after process
-        q_message response = cinema_handle(request, &exit);
+        request.client_id = client_id;
+        q_message response = cinema_handle(admin_communication, request, &exit);
 
         //3 - Send response
-        send_message(communication,response);
-        printf("[CINEMA] [SENDED RESPONSE TO CLIENT %d] MSG_CHOICE: %d\n",communication.id,response.message_choice_number);
+        send_message(client_communication,response);
+        printf("[CINEMA] [SENDED RESPONSE TO CLIENT %d] MSG_CHOICE: %d\n",client_communication.id,response.message_choice_number);
     }
     *static_cast<int*>(timer) = TIMER_CLOSE;
     shm_dettach(timer);
-    printf("[CINEMA] Finish communication with CLIENT %d\n", client_id);
+    printf("[CINEMA] Finish client_communication with CLIENT %d\n", client_id);
 }
 
 void cinema_start() {
-    commqueue communication = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
-    communication.orientation = COMMQUEUE_AS_SERVER;
+    /* Create comunication with client */
+    commqueue client_communication = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
+    client_communication.orientation = COMMQUEUE_AS_SERVER;
+    /* Create communication with admin */
+    commqueue admin_communication = create_commqueue(QUEUE_CINEMA_ADMIN_FILE, QUEUE_CINEMA_ADMIN_CHAR);
+    admin_communication.orientation = COMMQUEUE_AS_CLIENT;
+    admin_communication.id = ADMIN_REQUEST;
+
     printf("======= CINEMA ======\n");
     while (1) {
-        int client_pid = cinema_take_client(communication);
+        int client_pid = cinema_take_client(client_communication, admin_communication);
         if (fork() == 0) {
-            cinema_listen_client(communication,client_pid);
+            cinema_listen_client(client_communication, admin_communication, client_pid);
             exit(0);
         }
     }
 }
 
+void admin_start() {
+    if (fork() == 0) {
+        admin_daemon();
+        exit(0);
+    }
+}
+
 int main(int argc, char **argv) {
+    admin_start();
     cinema_start();
     return 0;
 }

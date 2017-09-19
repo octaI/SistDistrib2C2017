@@ -63,15 +63,15 @@ void db_initialize(sqlite3 *&database) {
         fprintf(stderr,"Error : %s",q_errmsg);
         sqlite3_free(q_errmsg);
     } else {
-        fprintf(stdout, "Database succesfully initalized \n");
+        fprintf(stdout, "[CINEMA-DB]Database succesfully initalized \n");
     }
 }
 
 int db_insert_user(sqlite3 *&database){
     char *q_errmsg = 0;
     std::string sql_query = "INSERT INTO Users VALUES(null);";
-    return execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
-
+    int res = execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
+    return (int)sqlite3_last_insert_rowid(database);
 }
 
 int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid) {
@@ -187,7 +187,7 @@ std::vector<int> db_select_reservations(sqlite3* database, int roomid) {
 
 void db_delete(sqlite3 *&database, std::string filename){
     if (database == NULL) return;
-    if(remove(filename.c_str()) != 0) {
+    if ( remove(filename.c_str()) != 0 ) {
         perror("Error when deleting database file ");
         exit(1);
     }

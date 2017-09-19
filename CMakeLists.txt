@@ -17,12 +17,12 @@ add_library(cinema-common
         include/db/sqlite3ext.h
         include/db/db_api.h
         src/db/db_api.cpp
-        )
+        include/admin/admin.h)
 
 add_subdirectory("src/utils")
 add_subdirectory("src/cinema")
 add_subdirectory("src/client")
-add_subdirectory("src/admin")
+#add_subdirectory("src/admin")
 add_subdirectory("test")
 add_subdirectory("test/db_test")
 

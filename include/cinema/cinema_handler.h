@@ -5,6 +5,6 @@
 
 #define CINEMA_LISTENER_EXIT 1;
 
-q_message cinema_handle(q_message message, int *exit);
+q_message cinema_handle(commqueue admin_communication, q_message message, int *exit);
 
 #endif //DISTRIBUIDOS_CINEMA_HANDLER_H
