@@ -12,8 +12,8 @@
 #include <iostream>
 
 #define TIMER_CLOSE (-134)
-#define MAX_TIME_TO_WAIT_SECONDS 100
-#define TIMER_POLLING 2
+#define MAX_TIME_TO_WAIT_SECONDS 200
+#define TIMER_POLLING 20
 
 void send_confirmation(commqueue communication, int client_id) {
     q_message confirmation{};
