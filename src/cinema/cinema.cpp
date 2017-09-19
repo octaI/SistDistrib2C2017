@@ -98,7 +98,6 @@ void* start_timer(commqueue communication, int *timer_pid) {
 
 
 void cinema_listen_client(commqueue client_communication, commqueue admin_communication, int client_id) {
-    printf("AAAAAAAAA\n");
     client_communication.id = client_id;
 
     int timer_pid = -1;
