@@ -87,10 +87,10 @@ int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid
         sqlite3_bind_int(stmt,3,seatid);
     }
 
-    sqlite3_step(stmt);
+    int res = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-
-    return 0;
+    
+    return (res == SQLITE_DONE);
 }
 
 int db_insert_room(sqlite3 *&database){

@@ -72,13 +72,13 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
             printf("PASO 1\n");
             int current_room = db_select_user_current_room(handle,request.client_id);
             if(current_room == 0) { //client not in any room
-                printf("[CINEMA-HANDLER] ERROR: CLIENT %d not in room\n", request.client_id);
+                printf("[CINEMA-ADMIN] ERROR: CLIENT %d not in room\n", request.client_id);
                 response.message_choice_number = CHOICE_INVALID_REQUEST;
                 break;
             }
             printf("PASO 2\n");
-            if(!db_insert_reservation(handle,request.client_id,current_room,request.message_choice.m5.seat_id)){
-                printf("[CINEMA-HANDLER] Error on generate reservation to CLIENT %d\n",response.client_id);
+            if(db_insert_reservation(handle,request.client_id,current_room,request.message_choice.m5.seat_id) == 0){
+                printf("[CINEMA-ADMIN] Error on generate reservation to CLIENT %d\n",response.client_id);
                 response.message_choice_number = CHOICE_SEAT_SELECT_RESPONSE;
                 response.message_choice.m6.success = NOT_SUCCESS;
                 strcpy(response.message_choice.m6.information,sqlite3_errmsg(handle));
@@ -90,6 +90,7 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
             if (!users_to_update.empty()) {
                 printf("PASO 3.1\n");
                 commqueue client_channel = create_commqueue(QUEUE_ACTIVITY_FILE,QUEUE_ACTIVITY_CHAR);
+                client_channel.orientation = COMMQUEUE_AS_SERVER;
                 std::vector<int> seats = db_select_room_seats(handle,current_room);
                 std::vector<int> taken_seats = db_select_reservations(handle,current_room);
                 std::vector<int> seat_status(seats.size(),SEAT_STATUS_FREE);
@@ -97,10 +98,14 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
                     seat_status[index-1] = SEAT_STATUS_OCCUPED;
                 }
                 for (auto userid : users_to_update){
+                    printf("[CINEMA-ADMIN] Updating User ID: %d with taken seats: ",userid);
+                    show_vector(seat_status);
                     q_message update_msg{};
+                    client_channel.id = userid;
                     update_msg.client_id = userid;
                     update_msg.message_choice_number = CHOICE_SEATS_RESPONSE;
                     update_msg.message_choice.m4.success = SUCCESS;
+                    update_msg.message_choice.m4.count = (int)seats.size();
                     std::copy(seats.begin(),seats.end(),update_msg.message_choice.m4.seats_id);
                     std::copy(seat_status.begin(),seat_status.end(),update_msg.message_choice.m4.seats_status);
                     send_message(client_channel,update_msg);
