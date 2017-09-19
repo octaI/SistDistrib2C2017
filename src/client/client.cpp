@@ -6,6 +6,7 @@
 #include <constants.h>
 #include <ipc/sharedmemory.h>
 #include <utils/TextTable.h>
+#include <signal.h>
 
 #define MAX_CLIENT_INPUT 10
 #define REFRESH_SEATS (-500)
@@ -72,11 +73,12 @@ void print_seats(const int *seats, const int *seats_status, int count) {
 
 int update_seat_from_client(commqueue client_communication, bool print = true) {
     void* flag_update = shm_get_data(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
-    int update = *static_cast<int*>(flag_update);
+    int client_position = client_communication.id % MAX_CLIENTS;
+    int update = static_cast<int*>(flag_update)[client_position];
     int return_flag = NOT_UPDATED;
     if (update == SEAT_UPDATE) {
         q_message seats = receive_message(client_communication);
-        *static_cast<int*>(flag_update) = NO_SEAT_UPDATE;
+        static_cast<int*>(flag_update)[client_position] = NO_SEAT_UPDATE;
         if (seats.message_choice_number == CHOICE_SEATS_RESPONSE && print) {
             print_seats(
                     seats.message_choice.m4.seats_id,
@@ -97,21 +99,23 @@ void async_listener(commqueue client_communication) {
     admin_communication.id = client_communication.id;
     admin_communication.orientation = COMMQUEUE_AS_CLIENT;
 
+    int client_position = client_communication.id % MAX_CLIENTS;
+
     void* flag_update = shm_get_data(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
-    *static_cast<int*>(flag_update) = NO_SEAT_UPDATE;
+    static_cast<int*>(flag_update)[client_position] = NO_SEAT_UPDATE;
     int close_listener = 0;
     while (close_listener == 0) {
         q_message seats_update = receive_message(admin_communication);
         printf("[CLIENT-D] An updated of seats detected (refresh to view)\n");
         if (seats_update.message_choice_number == CHOICE_SEATS_RESPONSE) {
             //0. Me fijo si ya habia dejado un mensaje antes. Si lo hay me lo "autoleo"
-            if (*static_cast<int*>(flag_update) == SEAT_UPDATE) {
+            if (static_cast<int*>(flag_update)[client_position] == SEAT_UPDATE) {
                 client_communication.orientation = COMMQUEUE_AS_CLIENT;
                 update_seat_from_client(client_communication, false);
                 client_communication.orientation = COMMQUEUE_AS_SERVER;
             }
             //1. Update shared memory
-            *static_cast<int*>(flag_update) = SEAT_UPDATE;
+            static_cast<int*>(flag_update)[client_position] = SEAT_UPDATE;
             //2. Sent info to the father
             send_message(client_communication, seats_update);
         } else if (seats_update.message_choice_number == CHOICE_EXIT) {
@@ -124,12 +128,14 @@ void async_listener(commqueue client_communication) {
     exit(0);
 }
 
-commqueue client_start_async_seat_listener(int client_id) {
+commqueue client_start_async_seat_listener(int client_id, int *listener_pid) {
     commqueue client_communication = create_commqueue(QUEUE_CLIENT_FILE, QUEUE_CLIENT_CHAR);
     client_communication.id = client_id;
-    if (fork() == 0) {
+    pid_t listener = fork();
+    if (listener == 0) {
         async_listener(client_communication);
     } else {
+        *listener_pid = (int)listener;
         client_communication.orientation = COMMQUEUE_AS_CLIENT;
     }
     return client_communication;
@@ -213,7 +219,8 @@ void client_start() {
 
     //3.1 fork listener
     Start_Seat_Listener:
-    commqueue client_communication = client_start_async_seat_listener(client_id);
+    int listener_pid = -1;
+    commqueue client_communication = client_start_async_seat_listener(client_id, &listener_pid);
 
     //3.2 show room seating information
     print_seats(
@@ -251,7 +258,8 @@ void client_start() {
         goto Seat_Select;
     }
 
-    //client_end_async_seat_listener();
+    // Kill listener
+    kill(listener_pid, SIGKILL);
 
     //4.1 else show seating information and exit.
     printf("SUCCESS: Selected SEAT: %d in ROOM %d\n",selected_seat_id, room_id);

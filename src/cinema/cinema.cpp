@@ -13,6 +13,7 @@
 
 #define TIMER_CLOSE (-134)
 #define MAX_TIME_TO_WAIT_SECONDS 100
+#define TIMER_POLLING 2
 
 void send_confirmation(commqueue communication, int client_id) {
     q_message confirmation{};
@@ -50,22 +51,27 @@ int cinema_take_client(commqueue client_communication, commqueue admin_communica
     return client_id; //client_pid
 }
 
-void* start_timer(commqueue communication) {
-    void* timer = shm_get_data(SHM_CINEMA_TIMER_FILE, SHM_CINEMA_TIMER_CHAR, SHM_CINEMA_TIMER_SIZE);
-    *static_cast<int*>(timer) = (int)time(nullptr);
+void* start_timer(commqueue communication, int *timer_pid) {
 
-    if (fork() == 0) {
+    void* timer = shm_get_data(SHM_CINEMA_TIMER_FILE, SHM_CINEMA_TIMER_CHAR, SHM_CINEMA_TIMER_SIZE);
+    int clien_position = communication.id % MAX_CLIENTS;
+
+    static_cast<int*>(timer)[clien_position] = (int)time(nullptr);
+
+    pid_t timer_fork = fork();
+    if (timer_fork == 0) {
         /* Set communication as client to simulate exit */
         communication.orientation = COMMQUEUE_AS_CLIENT;
 
         int stop = 0;
         while (stop == 0) {
-            sleep(15);
-            int last_time_stamp = *static_cast<int*>(timer);
+            sleep(TIMER_POLLING);
+            int last_time_stamp = static_cast<int*>(timer)[clien_position];
             auto timestamp = (int)time(nullptr);
             if (timestamp == TIMER_CLOSE) {
                 printf("[CINEMA-TIMER] [CLIENT %d] Close Timer after cinema close\n", communication.id);
                 stop = 1;
+                continue;
             }
             int difference = timestamp - last_time_stamp;
             if (difference > MAX_TIME_TO_WAIT_SECONDS) {
@@ -86,23 +92,27 @@ void* start_timer(commqueue communication) {
         shm_dettach(timer);
         exit(0);
     }
+    *timer_pid = (int)timer_fork;
     return timer;
 }
 
 
 void cinema_listen_client(commqueue client_communication, commqueue admin_communication, int client_id) {
+    printf("AAAAAAAAA\n");
     client_communication.id = client_id;
 
-    void* timer = start_timer(client_communication);
-
+    int timer_pid = -1;
+    void* timer = start_timer(client_communication, &timer_pid);
+    printf("[CINEMA-CLIENT_%d] Timer Initialized with pid %d\n",client_id, timer_pid);
     int exit = 0;
+    int clien_position = client_id % MAX_CLIENTS;
     while (exit == 0) {
         //1 - Receive message from queue (client id)
         q_message request = receive_message(client_communication);
         printf("[CINEMA] [RECEIVE MESSAGE FROM CLIENT %d] MSG_CHOICE: %d\n",client_id, (int)request.message_choice_number);
 
         //1-bis Update timer
-        *static_cast<int*>(timer) = (int)time(nullptr);
+        static_cast<int*>(timer)[clien_position] = (int)time(nullptr);
 
         //2 - Process message
         //2.1 - Generate response after process
@@ -113,7 +123,10 @@ void cinema_listen_client(commqueue client_communication, commqueue admin_commun
         send_message(client_communication,response);
         printf("[CINEMA] [SENDED RESPONSE TO CLIENT %d] MSG_CHOICE: %d\n",client_communication.id,response.message_choice_number);
     }
-    *static_cast<int*>(timer) = TIMER_CLOSE;
+
+    kill(timer_pid, SIGKILL);
+
+    static_cast<int*>(timer)[clien_position] = TIMER_CLOSE;
     shm_dettach(timer);
     printf("[CINEMA] Finish client_communication with CLIENT %d\n", client_id);
 }

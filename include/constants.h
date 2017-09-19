@@ -3,6 +3,8 @@
 
 /* -------------------------------------------------------*/
 
+#define MAX_CLIENTS 1000
+
 #define THROW_UTIL(message) \
     std::cerr << std::string(__FILE__) << "::" << std::string(std::to_string(__LINE__)) << ": " << std::string(message) << std::endl; \
     exit(1);
@@ -24,12 +26,12 @@
 
 #define SHM_CLIENT_FILE "/bin/bash"
 #define SHM_CLIENT_CHAR 'p'
-#define SHM_CLIENT_SIZE sizeof(int)
+#define SHM_CLIENT_SIZE sizeof(int)*MAX_CLIENTS
 
 
 #define SHM_CINEMA_TIMER_FILE "/bin/bash"
 #define SHM_CINEMA_TIMER_CHAR 't'
-#define SHM_CINEMA_TIMER_SIZE sizeof(int)
+#define SHM_CINEMA_TIMER_SIZE sizeof(int)*MAX_CLIENTS
 
 /* ---Definition of channel constants between known communications in the system */
 
@@ -38,7 +40,6 @@
 
 #define ADMIN_TO_CINEMA 1
 
-/* ---Definition of message types constants---*/
 
 #define ADMIN_REQUEST 1
 
