@@ -28,10 +28,17 @@
 #define SHM_CLIENT_CHAR 'p'
 #define SHM_CLIENT_SIZE sizeof(int)*MAX_CLIENTS
 
+#define MUTEX_CLIENT_FILE "/bin/bash"
+#define MUTEX_CLIENT_CHAR 'v'
+#define MUTEX_CLIENT_INIT_VALUE 1
 
 #define SHM_CINEMA_TIMER_FILE "/bin/bash"
 #define SHM_CINEMA_TIMER_CHAR 't'
 #define SHM_CINEMA_TIMER_SIZE sizeof(int)*MAX_CLIENTS
+
+#define MUTEX_CINEMA_FILE "/bin/bash"
+#define MUTEX_CINEMA_CHAR 'x'
+#define MUTEX_CINEMA_INIT_VALUE 1
 
 /* ---Definition of channel constants between known communications in the system */
 

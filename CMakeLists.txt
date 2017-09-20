@@ -9,7 +9,7 @@ add_library(common
         src/ipc/queue.cpp include/ipc/queue.h
         src/ipc/communicationqueue.cpp include/ipc/communicationqueue.h
         include/constants.h include/messages/message.h
-        src/ipc/sharedmemory.cpp include/ipc/sharedmemory.h)
+        src/ipc/sharedmemory.cpp include/ipc/sharedmemory.h include/ipc/semaphore.h src/ipc/semaphore.cpp)
 
 add_library(cinema-common
         src/db/sqlite3.c

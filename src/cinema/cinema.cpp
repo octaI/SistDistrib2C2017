@@ -10,10 +10,12 @@
 #include <ipc/sharedmemory.h>
 #include <admin/admin.h>
 #include <iostream>
+#include <ipc/semaphore.h>
 
 #define TIMER_CLOSE (-134)
-#define MAX_TIME_TO_WAIT_SECONDS 200
-#define TIMER_POLLING 20
+#define MAX_TIME_TO_WAIT_SECONDS 10
+#define TIMER_POLLING 2
+#define CONNECTION_TIMEDOUT -1
 
 void send_confirmation(commqueue communication, int client_id) {
     q_message confirmation{};
@@ -51,12 +53,25 @@ int cinema_take_client(commqueue client_communication, commqueue admin_communica
     return client_id; //client_pid
 }
 
-void* start_timer(commqueue communication, int *timer_pid) {
+int update_timestamp(void* timer, int client_position, int mutex_id, int new_value = (int)time(nullptr)) {
+    semaphore_wait(mutex_id);
+    static_cast<int*>(timer)[client_position] = new_value;
+    semaphore_signal(mutex_id);
+}
+
+int get_timestamp(void* timer, int client_position, int mutex_id) {
+    semaphore_wait(mutex_id);
+    int timestamp = static_cast<int*>(timer)[client_position];
+    semaphore_signal(mutex_id);
+    return timestamp;
+}
+
+void* start_timer(commqueue communication, int mutex_id, int *timer_pid) {
 
     void* timer = shm_get_data(SHM_CINEMA_TIMER_FILE, SHM_CINEMA_TIMER_CHAR, SHM_CINEMA_TIMER_SIZE);
-    int clien_position = communication.id % MAX_CLIENTS;
+    int client_position = communication.id % MAX_CLIENTS;
 
-    static_cast<int*>(timer)[clien_position] = (int)time(nullptr);
+    update_timestamp(timer,client_position, mutex_id);
 
     pid_t timer_fork = fork();
     if (timer_fork == 0) {
@@ -66,7 +81,7 @@ void* start_timer(commqueue communication, int *timer_pid) {
         int stop = 0;
         while (stop == 0) {
             sleep(TIMER_POLLING);
-            int last_time_stamp = static_cast<int*>(timer)[clien_position];
+            int last_time_stamp = get_timestamp(timer,client_position,mutex_id);
             auto timestamp = (int)time(nullptr);
             if (timestamp == TIMER_CLOSE) {
                 printf("[CINEMA-TIMER] [CLIENT %d] Close Timer after cinema close\n", communication.id);
@@ -78,13 +93,10 @@ void* start_timer(commqueue communication, int *timer_pid) {
                 printf("[CINEMA-TIMER] [CLIENT %d] Close connectio %d seconds of client inactivity\n", communication.id , difference);
                 q_message exit_message{};
                 exit_message.message_choice_number = CHOICE_EXIT;
+                // Send message "as client" to cinema to close the connection
                 send_message(communication,exit_message);
-                q_message confirm_exit = receive_message(communication);
-                if (confirm_exit.message_choice_number == CHOICE_EXIT) {
-                    stop = 1;
-                } else {
-                    exit(1);
-                }
+                update_timestamp(timer,client_position,mutex_id, CONNECTION_TIMEDOUT);
+                stop = 1;
             } else {
                 printf("[CINEMA-TIMER] [CLIENT %d] %d seconds of inactivity\n", communication.id, difference);
             }
@@ -100,8 +112,10 @@ void* start_timer(commqueue communication, int *timer_pid) {
 void cinema_listen_client(commqueue client_communication, commqueue admin_communication, int client_id) {
     client_communication.id = client_id;
 
+    int mutex_shared_memory = semaphore_get(MUTEX_CINEMA_FILE, MUTEX_CINEMA_CHAR);
+
     int timer_pid = -1;
-    void* timer = start_timer(client_communication, &timer_pid);
+    void* timer = start_timer(client_communication, mutex_shared_memory, &timer_pid);
     printf("[CINEMA-CLIENT_%d] Timer Initialized with pid %d\n",client_id, timer_pid);
     int exit = 0;
     int clien_position = client_id % MAX_CLIENTS;
@@ -111,7 +125,8 @@ void cinema_listen_client(commqueue client_communication, commqueue admin_commun
         printf("[CINEMA] [RECEIVE MESSAGE FROM CLIENT %d] MSG_CHOICE: %d\n",client_id, (int)request.message_choice_number);
 
         //1-bis Update timer
-        static_cast<int*>(timer)[clien_position] = (int)time(nullptr);
+        if (get_timestamp(timer,clien_position,mutex_shared_memory) != CONNECTION_TIMEDOUT)
+            update_timestamp(timer, clien_position, mutex_shared_memory);
 
         //2 - Process message
         //2.1 - Generate response after process
@@ -120,12 +135,18 @@ void cinema_listen_client(commqueue client_communication, commqueue admin_commun
 
         //3 - Send response
         send_message(client_communication,response);
-        printf("[CINEMA] [SENDED RESPONSE TO CLIENT %d] MSG_CHOICE: %d\n",client_communication.id,response.message_choice_number);
+        printf("[CINEMA] [SENT RESPONSE TO CLIENT %d] MSG_CHOICE: %d\n",client_communication.id,response.message_choice_number);
     }
-
     kill(timer_pid, SIGKILL);
 
-    static_cast<int*>(timer)[clien_position] = TIMER_CLOSE;
+    if (get_timestamp(timer,clien_position,mutex_shared_memory) == CONNECTION_TIMEDOUT) {
+        // Cinema close the connection. If client send a message, receive it and finish
+        printf("[CINEMA] Wait a message from CLIENT %d after close\n",client_id);
+        receive_message(client_communication);
+    } else {
+        // Client finish the connection. Close timer if it wasn't killed
+        update_timestamp(timer, clien_position, mutex_shared_memory, TIMER_CLOSE);
+    }
     shm_dettach(timer);
     printf("[CINEMA] Finish client_communication with CLIENT %d\n", client_id);
 }

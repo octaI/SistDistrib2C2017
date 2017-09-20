@@ -7,6 +7,8 @@
 #include <ipc/sharedmemory.h>
 #include <utils/TextTable.h>
 #include <signal.h>
+#include <semaphore.h>
+#include <ipc/semaphore.h>
 
 #define MAX_CLIENT_INPUT 10
 #define REFRESH_SEATS (-500)
@@ -14,8 +16,40 @@
 #define UPDATE_SUCCESS 1
 #define NOT_UPDATED 0
 
-#define SEAT_UPDATE 1
 #define NO_SEAT_UPDATE 0
+
+
+int read_update(void* shm, int position, int sem_id) {
+    /* Critic section */
+
+    semaphore_wait(sem_id);
+
+    int value = static_cast<int*>(shm)[position];
+
+    semaphore_signal(sem_id);
+
+    return value;
+}
+
+void write_update(void* shm, int position, int sem_id, int new_value) {
+
+    semaphore_wait(sem_id);
+
+    static_cast<int*>(shm)[position] = new_value;
+
+    semaphore_signal(sem_id);
+
+}
+
+void add_update(void* shm, int position, int sem_id) {
+
+    semaphore_wait(sem_id);
+
+    static_cast<int*>(shm)[position] = static_cast<int*>(shm)[position] + 1;
+
+    semaphore_signal(sem_id);
+
+}
 
 int client_connect_to_cinema(commqueue communication) {
     auto client_id = (int)getpid();
@@ -71,14 +105,17 @@ void print_seats(const int *seats, const int *seats_status, int count) {
 
 }
 
-int update_seat_from_client(commqueue client_communication, bool print = true) {
+int update_seat_from_client(commqueue client_communication, int mutex, bool print = true) {
     void* flag_update = shm_get_data(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
     int client_position = client_communication.id % MAX_CLIENTS;
-    int update = static_cast<int*>(flag_update)[client_position];
+    int updates = read_update(flag_update, client_position, mutex);
     int return_flag = NOT_UPDATED;
-    if (update == SEAT_UPDATE) {
+    if (updates > 0) {
         q_message seats = receive_message(client_communication);
-        static_cast<int*>(flag_update)[client_position] = NO_SEAT_UPDATE;
+        for (int i = 1; i < updates; i++) {
+            seats = receive_message(client_communication);
+        }
+        write_update(flag_update, client_position, mutex, NO_SEAT_UPDATE);
         if (seats.message_choice_number == CHOICE_SEATS_RESPONSE && print) {
             print_seats(
                     seats.message_choice.m4.seats_id,
@@ -92,7 +129,7 @@ int update_seat_from_client(commqueue client_communication, bool print = true) {
     return return_flag;
 }
 
-void async_listener(commqueue client_communication) {
+void async_listener(commqueue client_communication, int mutex_shared_id) {
     client_communication.orientation = COMMQUEUE_AS_SERVER;
 
     commqueue admin_communication = create_commqueue(QUEUE_ACTIVITY_FILE,QUEUE_ACTIVITY_CHAR);
@@ -102,21 +139,17 @@ void async_listener(commqueue client_communication) {
     int client_position = client_communication.id % MAX_CLIENTS;
 
     void* flag_update = shm_get_data(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
-    static_cast<int*>(flag_update)[client_position] = NO_SEAT_UPDATE;
+
+    write_update(flag_update,client_position,mutex_shared_id,NO_SEAT_UPDATE);
+
     int close_listener = 0;
     while (close_listener == 0) {
         q_message seats_update = receive_message(admin_communication);
         printf("[CLIENT-D] An updated of seats detected (refresh to view)\n");
         if (seats_update.message_choice_number == CHOICE_SEATS_RESPONSE) {
-            //0. Me fijo si ya habia dejado un mensaje antes. Si lo hay me lo "autoleo"
-            if (static_cast<int*>(flag_update)[client_position] == SEAT_UPDATE) {
-                client_communication.orientation = COMMQUEUE_AS_CLIENT;
-                update_seat_from_client(client_communication, false);
-                client_communication.orientation = COMMQUEUE_AS_SERVER;
-            }
             //1. Update shared memory
-            static_cast<int*>(flag_update)[client_position] = SEAT_UPDATE;
-            //2. Sent info to the father
+            add_update(flag_update, client_position, mutex_shared_id);
+            //2. Send info to the father
             send_message(client_communication, seats_update);
         } else if (seats_update.message_choice_number == CHOICE_EXIT) {
             close_listener = 1;
@@ -128,12 +161,12 @@ void async_listener(commqueue client_communication) {
     exit(0);
 }
 
-commqueue client_start_async_seat_listener(int client_id, int *listener_pid) {
+commqueue client_start_async_seat_listener(int client_id,int mutex_shared, int *listener_pid) {
     commqueue client_communication = create_commqueue(QUEUE_CLIENT_FILE, QUEUE_CLIENT_CHAR);
     client_communication.id = client_id;
     pid_t listener = fork();
     if (listener == 0) {
-        async_listener(client_communication);
+        async_listener(client_communication, mutex_shared);
     } else {
         *listener_pid = (int)listener;
         client_communication.orientation = COMMQUEUE_AS_CLIENT;
@@ -174,9 +207,16 @@ int client_select_seat() {
     return room_id;
 }
 
+void close_client() {
+    printf("Goodbye\n");
+    exit(0);
+}
+
 void client_start() {
     commqueue cinema_communication = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
     cinema_communication.orientation = COMMQUEUE_AS_CLIENT;
+
+    int mutex_shared_memory = semaphore_get(MUTEX_CLIENT_FILE, MUTEX_CLIENT_CHAR);
 
     int client_id = client_connect_to_cinema(cinema_communication);
     cinema_communication.id = client_id;
@@ -208,6 +248,10 @@ void client_start() {
 
     q_message room_information = receive_message(cinema_communication);
     if (room_information.message_choice_number != CHOICE_SEATS_RESPONSE) {
+        if (room_information.message_choice_number == CHOICE_EXIT) {
+            printf("[CLIENT] Cinema close connection\n");
+            close_client();
+        }
         printf("[CLIENT] Unexpected Error after CHOICE_SEATS_REQUEST\n");
         goto Select_Room;
     } else {
@@ -220,7 +264,7 @@ void client_start() {
     //3.1 fork listener
     Start_Seat_Listener:
     int listener_pid = -1;
-    commqueue client_communication = client_start_async_seat_listener(client_id, &listener_pid);
+    commqueue client_communication = client_start_async_seat_listener(client_id,mutex_shared_memory,&listener_pid);
 
     //3.2 show room seating information
     print_seats(
@@ -234,7 +278,7 @@ void client_start() {
     int selected_seat_id = client_select_seat();
     //3.4-a if see information refresh and show seeting information
     if (selected_seat_id == REFRESH_SEATS) {
-        if (update_seat_from_client(client_communication) == NOT_UPDATED) {
+        if (update_seat_from_client(client_communication, mutex_shared_memory) == NOT_UPDATED) {
             goto Start_Seat_Listener;
         }
         goto Seat_Select;
@@ -249,6 +293,10 @@ void client_start() {
     //4.0 If not succes goto 3
     q_message seat_select_response = receive_message(cinema_communication);
     if (seat_select_response.message_choice_number != CHOICE_SEAT_SELECT_RESPONSE) {
+        if (seat_select_response.message_choice_number == CHOICE_EXIT) {
+            printf("[CLIENT] Cinema close connection\n");
+            close_client();
+        }
         printf("[CLIENT] Unexpected error when select seat\n");
         goto Seat_Select;
     }
@@ -270,8 +318,7 @@ void client_start() {
     if (exit_from_cinema.message_choice_number != CHOICE_EXIT) {
         printf("[CLIENT] Error after exited from cinema\n");
     }
-    printf("Goodbye\n");
-
+    close_client();
 }
 
 

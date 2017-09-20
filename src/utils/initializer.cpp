@@ -1,5 +1,6 @@
 #include <ipc/sharedmemory.h>
 #include <ipc/communicationqueue.h>
+#include <ipc/semaphore.h>
 #include "stdio.h"
 #include "../../include/constants.h"
 #include "../../include/ipc/communicationqueue.h"
@@ -16,11 +17,17 @@ int main() {
     int shm_timer = shm_create(SHM_CINEMA_TIMER_FILE, SHM_CINEMA_TIMER_CHAR, SHM_CINEMA_TIMER_SIZE);
     printf("[OK] [%d] SHM_CINEMA_TIMER\n", shm_timer);
 
+    int mutex_cinema = semaphore_create(MUTEX_CINEMA_FILE, MUTEX_CINEMA_CHAR, MUTEX_CINEMA_INIT_VALUE);
+    printf("[OK] [%d] MUTEX_CINEMA\n", mutex_cinema);
+
     commqueue client = create_commqueue(QUEUE_CLIENT_FILE,QUEUE_CLIENT_CHAR);
     printf("[OK] [%d,%d] QUEUE_CLIENT [CLIENT-CLIENT]\n",client.id_firstqueue,client.id_secondqueue);
 
     int shm_client = shm_create(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
     printf("[OK] [%d] SHM_CLIENT\n", shm_client);
+
+    int mutex_client = semaphore_create(MUTEX_CLIENT_FILE, MUTEX_CLIENT_CHAR, MUTEX_CLIENT_INIT_VALUE);
+    printf("[OK] [%d] MUTEX_CLIENT\n", mutex_client);
 
     commqueue communication = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
     printf("[OK] [%d,%d]QUEUE_COMMUNICATION_CHAR [CINEMA-CLIENT]\n", communication.id_firstqueue, communication.id_secondqueue);
