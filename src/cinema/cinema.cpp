@@ -13,7 +13,7 @@
 #include <ipc/semaphore.h>
 
 #define TIMER_CLOSE (-134)
-#define MAX_TIME_TO_WAIT_SECONDS 10
+#define MAX_TIME_TO_WAIT_SECONDS 30
 #define TIMER_POLLING 2
 #define CONNECTION_TIMEDOUT -1
 

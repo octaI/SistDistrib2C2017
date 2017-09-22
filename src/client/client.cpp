@@ -12,12 +12,17 @@
 
 #define MAX_CLIENT_INPUT 10
 #define REFRESH_SEATS (-500)
+#define GO_BACK (-135)
 
 #define UPDATE_SUCCESS 1
 #define NOT_UPDATED 0
 
 #define NO_SEAT_UPDATE 0
 
+typedef struct {
+    int room_id;
+    int seat_id;
+} client_reservation;
 
 int read_update(void* shm, int position, int sem_id) {
     /* Critic section */
@@ -161,17 +166,12 @@ void async_listener(commqueue client_communication, int mutex_shared_id) {
     exit(0);
 }
 
-commqueue client_start_async_seat_listener(int client_id,int mutex_shared, int *listener_pid) {
-    commqueue client_communication = create_commqueue(QUEUE_CLIENT_FILE, QUEUE_CLIENT_CHAR);
-    client_communication.id = client_id;
+int client_start_async_seat_listener(commqueue client_communication,int mutex_shared) {
     pid_t listener = fork();
     if (listener == 0) {
         async_listener(client_communication, mutex_shared);
-    } else {
-        *listener_pid = (int)listener;
-        client_communication.orientation = COMMQUEUE_AS_CLIENT;
     }
-    return client_communication;
+    return listener;
 
 }
 
@@ -179,11 +179,16 @@ void client_end_async_seat_listener() {
     //TODO: Admin do this? or use shared memory
 }
 
+
 int client_select_room() {
     char str[MAX_CLIENT_INPUT];
 
-    printf("Enter a id of ROOM: ");
+    printf("Enter ROOM id or [B]ack to go back: ");
     fgets(str, sizeof str, stdin);
+
+    if (strcmp(str,"Back\n") == 0 || strcmp(str,"back\n") == 0 || strcmp(str,"b\n") == 0 || strcmp(str,"B\n") == 0) {
+        return GO_BACK;
+    }
 
     int room_id = atoi(str);
 
@@ -195,32 +200,124 @@ int client_select_room() {
 int client_select_seat() {
     char str[MAX_CLIENT_INPUT];
 
-    printf("Enter a id of SEAT or <<(R)efresh>> to reload: ");
+    printf("Enter SEAT id, [R]efresh to reload or [B]ack to go back: ");
     fgets(str, sizeof str, stdin);
     if (strcmp(str,"Refresh\n") == 0 || strcmp(str,"refresh\n") == 0 || strcmp(str,"r\n") == 0 || strcmp(str,"R\n") == 0) {
         return REFRESH_SEATS;
     }
+
+    if (strcmp(str,"Back\n") == 0 || strcmp(str,"back\n") == 0 || strcmp(str,"b\n") == 0 || strcmp(str,"B\n") == 0) {
+        return GO_BACK;
+    }
+
     int room_id = atoi(str);
 
-    printf("You Select SEAT %d\nPress <<Enter>> to purchase",room_id);
+    printf("You Select SEAT %d\nPress <<Enter>> to reserve",room_id);
     fgets(str, sizeof str, stdin); //Only to press ENTER
     return room_id;
 }
 
-void close_client() {
-    printf("Goodbye\n");
-    exit(0);
+#define OPTION_MAKE_RESERVATION 1
+#define OPTION_SEE_RESERVATION 2
+#define OPTION_BUY_RESERVATION 3
+#define OPTION_EXIT 4
+
+int client_menu(int count_reservations) {
+    char str[MAX_CLIENT_INPUT];
+    auto msg = const_cast<char *>("");
+    bool selected_valid_option = false;
+    int option = -1;
+    do {
+        printf("%s",msg);
+        printf("\n[%d] Make reservation\n",OPTION_MAKE_RESERVATION);
+        if (count_reservations > 0) {
+            printf("[%d] See %d reservation%s\n",OPTION_SEE_RESERVATION,count_reservations, (count_reservations == 1) ? "" : "s");
+            printf("[%d] Buy reservations\n",OPTION_BUY_RESERVATION);
+        }
+        printf("[%d] Exit\n",OPTION_EXIT);
+        printf("Select an option: ");
+
+        fgets(str, sizeof str, stdin);
+
+        option = atoi(str);
+        selected_valid_option = option == OPTION_MAKE_RESERVATION || option == OPTION_EXIT;
+        if (count_reservations > 0) {
+            selected_valid_option = selected_valid_option || option == OPTION_BUY_RESERVATION || option == OPTION_SEE_RESERVATION;
+        }
+        msg = const_cast<char *>("** Please enter a valid option **\n");
+    } while (!selected_valid_option);
+
+
+    return option;
+
 }
 
-void client_start() {
+int close_client(commqueue communication, int mutex_id) {
+    update_seat_from_client(communication,mutex_id, false);
+
+    q_message exit{};
+    exit.message_choice_number = CHOICE_EXIT;
+    send_message(communication,exit);
+    q_message exit_from_cinema = receive_message(communication);
+    if (exit_from_cinema.message_choice_number != CHOICE_EXIT) {
+        printf("[CLIENT] Error after exited from cinema\n");
+        return 1;
+    }
+
+    printf("Goodbye\n");
+    return 0;
+}
+
+void list_reservations(const std::vector<client_reservation> &reservations) {
+    int count = 1;
+    for (auto &reservation : reservations) {
+        printf("%d | Seat %d in Room %d\n", count, reservation.seat_id, reservation.room_id);
+    }
+    printf("Press <<Enter>> to continue\n");
+    char str[MAX_CLIENT_INPUT];
+    fgets(str, sizeof str, stdin);
+}
+
+int client_buy_reservations(commqueue communication, const std::vector<client_reservation> &reservations) {
+    // Send to cinema reservations and paid
+    return NOT_SUCCESS;
+}
+
+int client_start() {
     commqueue cinema_communication = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
     cinema_communication.orientation = COMMQUEUE_AS_CLIENT;
+
+    commqueue client_communication = create_commqueue(QUEUE_CLIENT_FILE, QUEUE_CLIENT_CHAR);
+    client_communication.orientation = COMMQUEUE_AS_CLIENT;
 
     int mutex_shared_memory = semaphore_get(MUTEX_CLIENT_FILE, MUTEX_CLIENT_CHAR);
 
     int client_id = client_connect_to_cinema(cinema_communication);
     cinema_communication.id = client_id;
+    client_communication.id = client_id;
+
     printf("Welcome CLIENT %d\n", client_id);
+
+    std::vector<client_reservation> reservations;
+
+    Menu:
+    int menu_selection = client_menu((int)reservations.size());
+    if (menu_selection == OPTION_MAKE_RESERVATION) {
+        goto Room_Request;
+    }
+    if (menu_selection == OPTION_EXIT) {
+        return close_client(cinema_communication, mutex_shared_memory);
+    }
+    if (menu_selection == OPTION_SEE_RESERVATION) {
+        list_reservations(reservations);
+        goto Menu;
+    }
+    if (menu_selection == OPTION_BUY_RESERVATION) {
+        if (client_buy_reservations(cinema_communication,reservations) != SUCCESS) {
+            goto Menu;
+        }
+        return close_client(cinema_communication, mutex_shared_memory);
+    }
 
     //1.1 request rooms
     Room_Request:
@@ -240,7 +337,11 @@ void client_start() {
     //2 select room
     Select_Room:
     int room_id = client_select_room();
-
+    
+    if (room_id == GO_BACK) {
+        goto Menu;
+    }
+    
     q_message select_room_message{};
     select_room_message.message_choice_number = CHOICE_SEATS_REQUEST;
     select_room_message.message_choice.m3.room_id = room_id;
@@ -250,7 +351,7 @@ void client_start() {
     if (room_information.message_choice_number != CHOICE_SEATS_RESPONSE) {
         if (room_information.message_choice_number == CHOICE_EXIT) {
             printf("[CLIENT] Cinema close connection\n");
-            close_client();
+            return close_client(client_communication, mutex_shared_memory);
         }
         printf("[CLIENT] Unexpected Error after CHOICE_SEATS_REQUEST\n");
         goto Select_Room;
@@ -262,9 +363,8 @@ void client_start() {
     }
 
     //3.1 fork listener
+    int listener_pid = client_start_async_seat_listener(client_communication, mutex_shared_memory);
     Start_Seat_Listener:
-    int listener_pid = -1;
-    commqueue client_communication = client_start_async_seat_listener(client_id,mutex_shared_memory,&listener_pid);
 
     //3.2 show room seating information
     print_seats(
@@ -284,6 +384,10 @@ void client_start() {
         goto Seat_Select;
 
     }
+    if (selected_seat_id == GO_BACK) {
+        goto Select_Room;
+    }
+    
     //3,4-b else request to select seat
     q_message seat_select{};
     seat_select.message_choice_number = CHOICE_SEAT_SELECT_REQUEST;
@@ -295,7 +399,7 @@ void client_start() {
     if (seat_select_response.message_choice_number != CHOICE_SEAT_SELECT_RESPONSE) {
         if (seat_select_response.message_choice_number == CHOICE_EXIT) {
             printf("[CLIENT] Cinema close connection\n");
-            close_client();
+            return close_client(client_communication, mutex_shared_memory);
         }
         printf("[CLIENT] Unexpected error when select seat\n");
         goto Seat_Select;
@@ -310,19 +414,15 @@ void client_start() {
     kill(listener_pid, SIGKILL);
 
     //4.1 else show seating information and exit.
-    printf("SUCCESS: Selected SEAT: %d in ROOM %d\n",selected_seat_id, room_id);
-    q_message exit{};
-    exit.message_choice_number = CHOICE_EXIT;
-    send_message(cinema_communication,exit);
-    q_message exit_from_cinema = receive_message(cinema_communication);
-    if (exit_from_cinema.message_choice_number != CHOICE_EXIT) {
-        printf("[CLIENT] Error after exited from cinema\n");
-    }
-    close_client();
+    printf("SUCCESS: Reserved SEAT %d in ROOM %d\n",selected_seat_id, room_id);
+    client_reservation reservation{};
+    reservation.room_id = room_id;
+    reservation.seat_id = selected_seat_id;
+    reservations.push_back(reservation);
+    goto Menu;
 }
 
 
 int main() {
-    client_start();
-    return 0;
+    return client_start();
 }
