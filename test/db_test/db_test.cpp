@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <messages/message.h>
 #include "../../include/db/db_api.h"
 
 #define TEST_DB_FILENAME "test_db.db"
@@ -109,6 +110,42 @@ int db_insert_seats_test(){
     callback_func my_func = show_select_seats_callback;
     sqlite3_exec(handle,sql_testquery.c_str(),my_func,(void*)data,&q_errmsg);
     db_delete(handle,TEST_DB_FILENAME);
+}
+
+int db_pay_reservations_test() {
+    std::string sql_testquery;
+    char *q_errmsg = 0;
+    const char* data = "Callback function called";
+    sqlite3* handle;
+    db_create(handle,TEST_DB_FILENAME);
+    db_initialize(handle);
+    for (int i = 0; i <3;i++){
+        if(db_insert_room(handle) != 1) std::cout << sqlite3_errmsg(handle) << std::endl;
+    }
+    for (int i = 0; i <3;i++){
+        if (db_insert_seats(handle,1,i+1) != 1) std::cerr << sqlite3_errmsg(handle) << std::endl;
+    }
+    sql_testquery = "SELECT * FROM Reservations";
+    callback_func my_func = show_select_reservations_callback;
+    db_insert_reservation(handle,1,1,1);
+    db_insert_reservation(handle,1,1,2);
+    db_insert_reservation(handle,2,2,1);
+    reservation newres1,newres2;
+    newres1.seat_num =1;
+    newres1.room = 1;
+    newres2.room = 1;
+    newres2.seat_num = 2;
+    db_update_paid_reservation(handle,1,newres1);
+    db_update_paid_reservation(handle,1,newres2);
+    printf("[PRE] BEFORE PAYING FOR USER_ID = 1 \n");
+    sqlite3_exec(handle,sql_testquery.c_str(),my_func,&data,&q_errmsg);
+    db_remove_user_unpaid_reservations(handle,1); //should not change anything
+    db_remove_user_unpaid_reservations(handle,2); //should remove reservation from user 2
+    printf("[POST] AFTER PAYING FOR USER_ID = 1 \n");
+
+    sqlite3_exec(handle,sql_testquery.c_str(),my_func,&data,&q_errmsg);
+    db_delete(handle,TEST_DB_FILENAME);
+
 }
 
 int db_insert_reservations_test(){
@@ -238,8 +275,8 @@ int main(){
     db_insert_room_test();
     db_insert_seats_test();
     */
-     db_insert_reservations_test();
-
+     //db_insert_reservations_test();
+    db_pay_reservations_test();
    /* db_select_room_test();
     db_select_room_seats_test();
     db_select_reservations_test();

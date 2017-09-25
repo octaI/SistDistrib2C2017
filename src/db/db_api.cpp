@@ -1,5 +1,6 @@
 #include <string>
 #include <iostream>
+#include <messages/message.h>
 #include "../../include/db/db_api.h"
 
 int execute_query(sqlite3 *database, std::string sql_query,callback_func callback, void* data, char* q_errmsg){
@@ -48,6 +49,7 @@ void db_initialize(sqlite3 *&database) {
             "room_id integer NOT NULL,"\
             "seat_id integer NOT NULL,"\
             "reservation_date DATETIME DEFAULT(STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),"\
+            "paid_flag integer NOT NULL DEFAULT(0),"
             "FOREIGN KEY(user_id) REFERENCES Users(id),"\
             "FOREIGN KEY(room_id,seat_id) REFERENCES Seats(room_id,seat_id),"\
             "PRIMARY KEY(room_id,seat_id));"\
@@ -57,6 +59,11 @@ void db_initialize(sqlite3 *&database) {
             "FOREIGN KEY(user_id) REFERENCES Users(id),"\
             "FOREIGN KEY(room_id) REFERENCES Rooms(id),"\
             "PRIMARY KEY(user_id,room_id)"\
+            ");"\
+            "CREATE TABLE IF NOT EXISTS Active_clients("\
+            "user_id integer NOT NULL,"\
+            "FOREIGN KEY(user_id) REFERENCES Users(id)"\
+            "PRIMARY KEY(user_id)"\
             ");";
     int res = sqlite3_exec(database,sql_query.c_str(),0,NULL,&q_errmsg);
     if (res != SQLITE_OK) {
@@ -67,14 +74,41 @@ void db_initialize(sqlite3 *&database) {
     }
 }
 
+int db_remove_user_unpaid_reservations(sqlite3 *&database, int userid){
+    char *q_errmsg = 0;
+    std::string sql_query = "DELETE FROM Reservations WHERE user_id="+std::to_string(userid)+" AND paid_flag = 0;";
+    int res=execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
+    return (res == SQLITE_OK);
+}
+
+int db_update_paid_reservation(sqlite3 *&database,int user_id, reservation user_reservation) {
+    char *q_errmsg = 0;
+    int room_id = user_reservation.room;
+    int seat_id = user_reservation.seat_num;
+    std::string sql_query = "UPDATE  Reservations SET paid_flag = 1 WHERE user_id=" + std::to_string(user_id) +" AND room_id= " +
+            std::to_string(room_id)+" AND seat_id=" + std::to_string(seat_id) +";";
+    int res = execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
+    return (res == SQLITE_OK);
+}
+
+int db_logout_user(sqlite3 *&database, int user_id) {
+    char *q_errmsg = 0;
+    std::string sql_query = "DELETE FROM Active_clients WHERE user_id=" + std::to_string(user_id) +";";
+    int res = execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
+    return (res == SQLITE_OK);
+}
+
+int db_login_user(sqlite3 *&database, int user_id) {
+    char *q_errmsg = 0;
+    std::string sql_query ="INSERT INTO Active_clients VALUES(" + std::to_string(user_id) + ");";
+    int res = execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
+    return (res == SQLITE_OK);
+}
+
 int db_insert_user(sqlite3 *&database){
     char *q_errmsg = 0;
     std::string sql_query = "INSERT INTO Users VALUES(null);";
     int res = execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
-    if (res != SQLITE_OK){
-        std::cerr << sqlite3_errmsg(database) << " , " << q_errmsg << std::endl;
-        return -1;
-    }
     return (int)sqlite3_last_insert_rowid(database);
 }
 

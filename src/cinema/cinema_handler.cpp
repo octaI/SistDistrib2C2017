@@ -17,6 +17,7 @@ q_message cinema_handle(commqueue admin_comunication, q_message message, int *ex
             break;
         case CHOICE_EXIT:
             response.message_choice_number = CHOICE_EXIT;
+            send_message(admin_comunication, message);
             *exit = CINEMA_LISTENER_EXIT;
             break;
         default:
