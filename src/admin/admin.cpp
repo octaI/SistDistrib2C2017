@@ -21,7 +21,7 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
     response.client_id = request.client_id;
     channel.id = response.client_id;
     switch (request.message_choice_number) {
-        case CHOICE_PAY_RESERVATION: {
+        case CHOICE_PAY_RESERVATION_REQUEST: {
             int executed_transactions = 0;
             int i = 0;
             while (executed_transactions < request.message_choice.m7.count) {
@@ -129,6 +129,7 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
                     std::copy(seats.begin(),seats.end(),update_msg.message_choice.m4.seats_id);
                     std::copy(seat_status.begin(),seat_status.end(),update_msg.message_choice.m4.seats_status);
                     send_message(client_channel,update_msg);
+                    printf("[CINEMA-ADMIN] Updated User ID: %d\n",userid);
                 }
             }
             printf("[CINEMA-ADMIN] Reservation succesfully made to client %d\n", response.client_id);
