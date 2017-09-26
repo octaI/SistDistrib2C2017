@@ -39,6 +39,7 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
         }
         case CHOICE_EXIT:{
             db_logout_user(handle,request.client_id);
+            db_remove_user_unpaid_reservations(handle,request.client_id);
             printf("[CINEMA-ADMIN] Logging out user with user_id: %d \n",request.client_id);
             break;
 
