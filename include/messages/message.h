@@ -56,12 +56,12 @@ typedef struct {
 typedef struct {
     int success;
     char information[MAX_LENGTH];
-} m6_seat_select_info;
+} m6_atomic_response;
 
 typedef struct {
     int count;
     reservation list[MAX_LENGTH];
-}m7_seat_payments;
+} m7_seat_payments;
 
 /* Definition of message pattern */
 
@@ -76,7 +76,7 @@ typedef struct {
         m3_seats_request        m3;
         m4_seats                m4;
         m5_seats_select         m5;
-        m6_seat_select_info     m6;
+        m6_atomic_response      m6;
         m7_seat_payments        m7;
     } message_choice;
 } q_message;
@@ -98,7 +98,7 @@ typedef struct {
 #define CHOICE_SEAT_SELECT_REQUEST 7
 #define CHOICE_SEAT_SELECT_RESPONSE 8
 
-#define CHOICE_PAY_RESERVATION 11
+#define CHOICE_PAY_RESERVATION_REQUEST 11
 #define CHOICE_PAY_RESERVATION_RESPONSE 12
 
 #define CHOICE_EXIT 9

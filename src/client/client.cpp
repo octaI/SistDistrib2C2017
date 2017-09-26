@@ -19,10 +19,6 @@
 
 #define NO_SEAT_UPDATE 0
 
-typedef struct {
-    int room_id;
-    int seat_id;
-} client_reservation;
 
 int read_update(void* shm, int position, int sem_id) {
     /* Critic section */
@@ -175,10 +171,6 @@ int client_start_async_seat_listener(commqueue client_communication,int mutex_sh
 
 }
 
-void client_end_async_seat_listener() {
-    //TODO: Admin do this? or use shared memory
-}
-
 
 int client_select_room() {
     char str[MAX_CLIENT_INPUT];
@@ -225,8 +217,8 @@ int client_select_seat() {
 int client_menu(int count_reservations) {
     char str[MAX_CLIENT_INPUT];
     auto msg = const_cast<char *>("");
-    bool selected_valid_option = false;
-    int option = -1;
+    bool selected_valid_option;
+    int option;
     do {
         printf("%s",msg);
         printf("\n[%d] Make reservation\n",OPTION_MAKE_RESERVATION);
@@ -268,19 +260,32 @@ int close_client(commqueue communication, int mutex_id) {
     return 0;
 }
 
-void list_reservations(const std::vector<client_reservation> &reservations) {
+void list_reservations(const std::vector<reservation> &reservations) {
     int count = 1;
     for (auto &reservation : reservations) {
-        printf("%d | Seat %d in Room %d\n", count, reservation.seat_id, reservation.room_id);
+        printf("%d | Seat %d in Room %d\n", count, reservation.seat_num, reservation.room);
+        count++;
     }
     printf("Press <<Enter>> to continue\n");
     char str[MAX_CLIENT_INPUT];
     fgets(str, sizeof str, stdin);
 }
 
-int client_buy_reservations(commqueue communication, const std::vector<client_reservation> &reservations) {
-    // Send to cinema reservations and paid
-    return NOT_SUCCESS;
+int client_buy_reservations(commqueue communication, const std::vector<reservation> &reservations) {
+    q_message request{};
+    request.client_id = communication.id;
+    request.message_choice_number = CHOICE_PAY_RESERVATION_REQUEST;
+    request.message_choice.m7.count = (int)reservations.size();
+    size_t mem_size = request.message_choice.m7.count*sizeof(reservation);
+    memset(request.message_choice.m7.list,0,mem_size);
+    memcpy(request.message_choice.m7.list,reservations.data(),mem_size);
+    send_message(communication, request);
+    q_message response = receive_message(communication);
+    if (response.message_choice.m6.success == NOT_SUCCESS) {
+        char *information = response.message_choice.m6.information;
+        printf("Error on Buy: %s\n", information);
+    }
+    return response.message_choice.m6.success;
 }
 
 int client_start() {
@@ -298,7 +303,7 @@ int client_start() {
 
     printf("Welcome CLIENT %d\n", client_id);
 
-    std::vector<client_reservation> reservations;
+    std::vector<reservation> reservations;
 
     Menu:
     int menu_selection = client_menu((int)reservations.size());
@@ -331,7 +336,7 @@ int client_start() {
         printf("[CLIENT] Unexpected Error after CHOICE_ROOMS_REQUEST\n");
         goto Room_Request;
     }
-
+    Print_Rooms:
     print_rooms(rooms.message_choice.m2.ids, rooms.message_choice.m2.count);
 
     //2 select room
@@ -381,11 +386,12 @@ int client_start() {
         if (update_seat_from_client(client_communication, mutex_shared_memory) == NOT_UPDATED) {
             goto Start_Seat_Listener;
         }
+        printf("No update found\n");
         goto Seat_Select;
 
     }
     if (selected_seat_id == GO_BACK) {
-        goto Select_Room;
+        goto Print_Rooms;
     }
     
     //3,4-b else request to select seat
@@ -415,9 +421,9 @@ int client_start() {
 
     //4.1 else show seating information and exit.
     printf("SUCCESS: Reserved SEAT %d in ROOM %d\n",selected_seat_id, room_id);
-    client_reservation reservation{};
-    reservation.room_id = room_id;
-    reservation.seat_id = selected_seat_id;
+    reservation reservation{};
+    reservation.room = room_id;
+    reservation.seat_num = selected_seat_id;
     reservations.push_back(reservation);
     goto Menu;
 }
