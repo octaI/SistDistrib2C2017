@@ -12,7 +12,7 @@ int main() {
     printf("[OK] [%d,%d] QUEUE_ACTIVITY [CINEMA_ADMIN-CLIENT]\n",activity.id_firstqueue,activity.id_secondqueue);
 
     commqueue cinema_admin = create_commqueue(QUEUE_CINEMA_ADMIN_FILE,QUEUE_CINEMA_ADMIN_CHAR);
-    printf("[OK] [%d,%d] QUEUE_CINEMA_ADMIN [CINEMA-CINEMA_ADMIN]\n", activity.id_firstqueue, activity.id_secondqueue);
+    printf("[OK] [%d,%d] QUEUE_CINEMA_ADMIN [CINEMA-CINEMA_ADMIN]\n", cinema_admin.id_firstqueue, cinema_admin.id_secondqueue);
 
     int shm_timer = shm_create(SHM_CINEMA_TIMER_FILE, SHM_CINEMA_TIMER_CHAR, SHM_CINEMA_TIMER_SIZE);
     printf("[OK] [%d] SHM_CINEMA_TIMER\n", shm_timer);

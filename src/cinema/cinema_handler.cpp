@@ -1,4 +1,3 @@
-#include <cstring>
 #include <vector>
 #include <messages/message.h>
 #include <ipc/communicationqueue.h>

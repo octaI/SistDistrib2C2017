@@ -6,8 +6,8 @@
 #include <constants.h>
 #include <ipc/sharedmemory.h>
 #include <utils/TextTable.h>
-#include <signal.h>
-#include <semaphore.h>
+#include <csignal>
+
 #include <ipc/semaphore.h>
 
 #define MAX_CLIENT_INPUT 10
@@ -115,6 +115,7 @@ int update_seat_from_client(commqueue client_communication, int mutex, bool prin
         q_message seats = receive_message(client_communication);
         for (int i = 1; i < updates; i++) {
             seats = receive_message(client_communication);
+
         }
         write_update(flag_update, client_position, mutex, NO_SEAT_UPDATE);
         if (seats.message_choice_number == CHOICE_SEATS_RESPONSE && print) {
@@ -182,7 +183,7 @@ int client_select_room() {
         return GO_BACK;
     }
 
-    int room_id = atoi(str);
+    auto room_id = (int)strtol(str, nullptr,10);//atoi(str);
 
     printf("You Select ROOM %d\nPress <<Enter>> to show seats",room_id);
     fgets(str, sizeof str, stdin); //Only to press ENTER
@@ -202,7 +203,7 @@ int client_select_seat() {
         return GO_BACK;
     }
 
-    int room_id = atoi(str);
+    auto room_id = (int)strtol(str, nullptr,10);//atoi(str);
 
     printf("You Select SEAT %d\nPress <<Enter>> to reserve",room_id);
     fgets(str, sizeof str, stdin); //Only to press ENTER
@@ -231,7 +232,7 @@ int client_menu(int count_reservations) {
 
         fgets(str, sizeof str, stdin);
 
-        option = atoi(str);
+        option = (int)strtol(str, nullptr,10);//atoi(str);
         selected_valid_option = option == OPTION_MAKE_RESERVATION || option == OPTION_EXIT;
         if (count_reservations > 0) {
             selected_valid_option = selected_valid_option || option == OPTION_BUY_RESERVATION || option == OPTION_SEE_RESERVATION;
@@ -244,8 +245,8 @@ int client_menu(int count_reservations) {
 
 }
 
-int close_client(commqueue communication, int mutex_id) {
-    update_seat_from_client(communication,mutex_id, false);
+int close_client(commqueue communication, commqueue client_communication, int mutex_id) {
+    update_seat_from_client(client_communication,mutex_id, false);
 
     q_message exit{};
     exit.message_choice_number = CHOICE_EXIT;
@@ -279,6 +280,8 @@ int client_buy_reservations(commqueue communication, const std::vector<reservati
     size_t mem_size = request.message_choice.m7.count*sizeof(reservation);
     memset(request.message_choice.m7.list,0,mem_size);
     memcpy(request.message_choice.m7.list,reservations.data(),mem_size);
+    printf("Sending payment, please wait...\n");
+    sleep(2);
     send_message(communication, request);
     q_message response = receive_message(communication);
     if (response.message_choice.m6.success == NOT_SUCCESS) {
@@ -311,7 +314,7 @@ int client_start() {
         goto Room_Request;
     }
     if (menu_selection == OPTION_EXIT) {
-        return close_client(cinema_communication, mutex_shared_memory);
+        return close_client(cinema_communication, client_communication, mutex_shared_memory);
     }
     if (menu_selection == OPTION_SEE_RESERVATION) {
         list_reservations(reservations);
@@ -321,7 +324,9 @@ int client_start() {
         if (client_buy_reservations(cinema_communication,reservations) != SUCCESS) {
             goto Menu;
         }
-        return close_client(cinema_communication, mutex_shared_memory);
+        const char *info = (reservations.size() == 1) ? "reservation was" : "reservations were";
+        printf("OK - %d %s purchased\n",(int)reservations.size(),info);
+        return close_client(cinema_communication, client_communication, mutex_shared_memory);
     }
 
     //1.1 request rooms
@@ -333,6 +338,11 @@ int client_start() {
     //1.2 show rooms
     q_message rooms = receive_message(cinema_communication);
     if ( rooms.message_choice_number != CHOICE_ROOMS_RESPONSE ) {
+        if (rooms.message_choice_number == CHOICE_EXIT) {
+            update_seat_from_client(client_communication,mutex_shared_memory, false);
+            printf("[CLIENT] Cinema close connection\n");
+            return 0;
+        }
         printf("[CLIENT] Unexpected Error after CHOICE_ROOMS_REQUEST\n");
         goto Room_Request;
     }
@@ -355,8 +365,9 @@ int client_start() {
     q_message room_information = receive_message(cinema_communication);
     if (room_information.message_choice_number != CHOICE_SEATS_RESPONSE) {
         if (room_information.message_choice_number == CHOICE_EXIT) {
+            update_seat_from_client(client_communication,mutex_shared_memory, false);
             printf("[CLIENT] Cinema close connection\n");
-            return close_client(client_communication, mutex_shared_memory);
+            return 0;
         }
         printf("[CLIENT] Unexpected Error after CHOICE_SEATS_REQUEST\n");
         goto Select_Room;
@@ -404,8 +415,9 @@ int client_start() {
     q_message seat_select_response = receive_message(cinema_communication);
     if (seat_select_response.message_choice_number != CHOICE_SEAT_SELECT_RESPONSE) {
         if (seat_select_response.message_choice_number == CHOICE_EXIT) {
+            update_seat_from_client(client_communication,mutex_shared_memory, false);
             printf("[CLIENT] Cinema close connection\n");
-            return close_client(client_communication, mutex_shared_memory);
+            return 0;
         }
         printf("[CLIENT] Unexpected error when select seat\n");
         goto Seat_Select;

@@ -10,8 +10,8 @@
 
 
 void show_vector(std::vector<int> result){
-    for ( auto i = result.begin(); i != result.end(); i++){
-        std::cout << *i << " ";
+    for (int &i : result) {
+        std::cout << i << " ";
     }
     std::cout << std::endl;
 }
@@ -41,8 +41,7 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
             db_logout_user(handle,request.client_id);
             db_remove_user_unpaid_reservations(handle,request.client_id);
             printf("[CINEMA-ADMIN] Logging out user with user_id: %d \n",request.client_id);
-            break;
-
+            return;
         }
         case CHOICE_CONNECTION_ACCEPTED:{
             response.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
@@ -147,7 +146,6 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
             response.message_choice_number = CHOICE_INVALID_REQUEST;
         }
     }
-
     send_message(channel,response);
 }
 
