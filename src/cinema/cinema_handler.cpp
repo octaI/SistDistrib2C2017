@@ -6,9 +6,10 @@
 q_message cinema_handle(commqueue admin_comunication, q_message message, int *exit) {
     q_message response{};
     switch (message.message_choice_number) {
-        case CHOICE_ROOMS_REQUEST:
         case CHOICE_SEATS_REQUEST:
             printf("[CINEMA] Request seats for ROOM %d\n", message.message_choice.m3.room_id);
+        case CHOICE_ROOMS_REQUEST:
+        case CHOICE_PAY_RESERVATION_REQUEST:
         case CHOICE_SEAT_SELECT_REQUEST:
             send_message(admin_comunication, message);
             admin_comunication.id = message.client_id;

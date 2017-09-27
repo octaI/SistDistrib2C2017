@@ -1,16 +1,19 @@
 #include <cstdio>
 #include <unistd.h>
 #include <cstring>
-#include <messages/message.h>
-#include <ipc/communicationqueue.h>
-#include <constants.h>
-#include <ipc/sharedmemory.h>
-#include <utils/TextTable.h>
-#include <csignal>
 
+#include <messages/message.h>
+#include <constants.h>
+
+#include <ipc/communicationqueue.h>
+#include <ipc/sharedmemory.h>
 #include <ipc/semaphore.h>
 
-#define MAX_CLIENT_INPUT 10
+#include <csignal>
+#include <client/client_utils.h>
+
+
+
 #define REFRESH_SEATS (-500)
 #define GO_BACK (-135)
 
@@ -19,158 +22,9 @@
 
 #define NO_SEAT_UPDATE 0
 
-
-int read_update(void* shm, int position, int sem_id) {
-    /* Critic section */
-
-    semaphore_wait(sem_id);
-
-    int value = static_cast<int*>(shm)[position];
-
-    semaphore_signal(sem_id);
-
-    return value;
-}
-
-void write_update(void* shm, int position, int sem_id, int new_value) {
-
-    semaphore_wait(sem_id);
-
-    static_cast<int*>(shm)[position] = new_value;
-
-    semaphore_signal(sem_id);
-
-}
-
-void add_update(void* shm, int position, int sem_id) {
-
-    semaphore_wait(sem_id);
-
-    static_cast<int*>(shm)[position] = static_cast<int*>(shm)[position] + 1;
-
-    semaphore_signal(sem_id);
-
-}
-
-int client_connect_to_cinema(commqueue communication) {
-    auto client_id = (int)getpid();
-
-    q_message request_connect{};
-    request_connect.message_type = TYPE_CONNECTION_REQUEST;
-    request_connect.message_choice.m1.client_id = client_id;
-
-    send_message(communication,request_connect);
-    printf("[CLIENT %d] Attemp to connect with cinema\n",client_id);
-
-    communication.id = client_id;
-    q_message response = receive_message(communication);
-
-    if (response.message_choice_number == CHOICE_CONNECTION_ACCEPTED) {
-        client_id = response.message_choice.m1.client_id;
-        printf("[CLIENT %d] Connection accepted\n",client_id);
-    }
-
-    return client_id;
-}
-
-void print_rooms(const int *rooms, int count) {
-    TextTable table;
-    table.add("Room ID  ");
-    table.endOfRow();
-
-    for (int room_index = 0; room_index < count; room_index++) {
-        table.add(std::to_string(rooms[room_index]));
-        table.endOfRow();
-    }
-    table.setAlignment(0, TextTable::Alignment::RIGHT);
-    std::cout << table << std::endl;
-}
-
-void print_seats(const int *seats, const int *seats_status, int count) {
-    TextTable table;
-    table.add("Seat Id  ");
-    table.add("Status   ");
-    table.endOfRow();
-    for (int seat_index = 0; seat_index < count; seat_index++) {
-        int seat_id = seats[seat_index];
-        int seat_status = seats_status[seat_index];
-        std::string status = (seat_status == SEAT_STATUS_FREE) ? "Free" : "Occupped";
-        //printf("Seat id: %d | STATUS: %s\n", seat_id, status.c_str());
-        table.add(std::to_string(seat_id));
-        table.add(status);
-        table.endOfRow();
-    }
-    table.setAlignment(0,TextTable::Alignment::RIGHT);
-    table.setAlignment(1,TextTable::Alignment::RIGHT);
-    std::cout << table << std::endl;
-
-}
-
-int update_seat_from_client(commqueue client_communication, int mutex, bool print = true) {
-    void* flag_update = shm_get_data(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
-    int client_position = client_communication.id % MAX_CLIENTS;
-    int updates = read_update(flag_update, client_position, mutex);
-    int return_flag = NOT_UPDATED;
-    if (updates > 0) {
-        q_message seats = receive_message(client_communication);
-        for (int i = 1; i < updates; i++) {
-            seats = receive_message(client_communication);
-
-        }
-        write_update(flag_update, client_position, mutex, NO_SEAT_UPDATE);
-        if (seats.message_choice_number == CHOICE_SEATS_RESPONSE && print) {
-            print_seats(
-                    seats.message_choice.m4.seats_id,
-                    seats.message_choice.m4.seats_status,
-                    seats.message_choice.m4.count
-            );
-        }
-        return_flag = UPDATE_SUCCESS;
-    }
-    shm_dettach(flag_update);
-    return return_flag;
-}
-
-void async_listener(commqueue client_communication, int mutex_shared_id) {
-    client_communication.orientation = COMMQUEUE_AS_SERVER;
-
-    commqueue admin_communication = create_commqueue(QUEUE_ACTIVITY_FILE,QUEUE_ACTIVITY_CHAR);
-    admin_communication.id = client_communication.id;
-    admin_communication.orientation = COMMQUEUE_AS_CLIENT;
-
-    int client_position = client_communication.id % MAX_CLIENTS;
-
-    void* flag_update = shm_get_data(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
-
-    write_update(flag_update,client_position,mutex_shared_id,NO_SEAT_UPDATE);
-
-    int close_listener = 0;
-    while (close_listener == 0) {
-        q_message seats_update = receive_message(admin_communication);
-        printf("[CLIENT-D] An updated of seats detected (refresh to view)\n");
-        if (seats_update.message_choice_number == CHOICE_SEATS_RESPONSE) {
-            //1. Update shared memory
-            add_update(flag_update, client_position, mutex_shared_id);
-            //2. Send info to the father
-            send_message(client_communication, seats_update);
-        } else if (seats_update.message_choice_number == CHOICE_EXIT) {
-            close_listener = 1;
-        } else {
-            printf("[CLIENT-D] Cannot read message\n");
-        }
-    }
-    shm_dettach(flag_update);
-    exit(0);
-}
-
-int client_start_async_seat_listener(commqueue client_communication,int mutex_shared) {
-    pid_t listener = fork();
-    if (listener == 0) {
-        async_listener(client_communication, mutex_shared);
-    }
-    return listener;
-
-}
+/**
+ * SIMPLE TERMINAL UI
+ */
 
 
 int client_select_room() {
@@ -242,16 +96,141 @@ int client_menu(int count_reservations) {
 
 
     return option;
+}
+
+
+/**
+ * EN UI
+ */
+
+
+typedef struct {
+    void* update_flag{};
+    int update_flag_position{};
+    int mutex_flag_id{};
+    int client_id{};
+    commqueue cinema_communication{};
+    commqueue update_communication{};
+    std::vector<reservation> reservations;
+} client_components;
+
+int client_read_flag_update(client_components client) {
+    /* Critic section */
+
+    semaphore_wait(client.mutex_flag_id);
+
+    int value = static_cast<int*>(client.update_flag)[client.update_flag_position];
+
+    semaphore_signal(client.mutex_flag_id);
+
+    return value;
+}
+
+void client_write_flag_update(client_components client, int new_value) {
+
+    semaphore_wait(client.mutex_flag_id);
+
+    static_cast<int*>(client.update_flag)[client.update_flag_position] = new_value;
+
+    semaphore_signal(client.mutex_flag_id);
 
 }
 
-int close_client(commqueue communication, commqueue client_communication, int mutex_id) {
-    update_seat_from_client(client_communication,mutex_id, false);
+void client_add_update(client_components client) {
+
+    semaphore_wait(client.mutex_flag_id);
+
+    static_cast<int*>(client.update_flag)[client.update_flag_position] = static_cast<int*>(client.update_flag)[client.update_flag_position] + 1;
+
+    semaphore_signal(client.mutex_flag_id);
+}
+
+int client_connect_to_cinema(commqueue communication) {
+    auto client_id = (int)getpid();
+
+    q_message request_connect{};
+    request_connect.message_type = TYPE_CONNECTION_REQUEST;
+    request_connect.message_choice.m1.client_id = client_id;
+
+    send_message(communication,request_connect);
+    printf("[CLIENT %d] Attemp to connect with cinema\n",client_id);
+
+    communication.id = client_id;
+    q_message response = receive_message(communication);
+
+    if (response.message_choice_number == CHOICE_CONNECTION_ACCEPTED) {
+        client_id = response.message_choice.m1.client_id;
+        printf("[CLIENT %d] Connection accepted\n",client_id);
+    }
+
+    return client_id;
+}
+
+int update_seat_from_client(client_components client, bool print = true) {
+    int updates = client_read_flag_update(client);
+    int return_flag = NOT_UPDATED;
+    if (updates > 0) {
+        q_message seats = receive_message(client.update_communication);
+        for (int i = 1; i < updates; i++) {
+            seats = receive_message(client.update_communication);
+
+        }
+        client_write_flag_update(client, NO_SEAT_UPDATE);
+        if (seats.message_choice_number == CHOICE_SEATS_RESPONSE && print) {
+            print_seats(
+                    seats.message_choice.m4.seats_id,
+                    seats.message_choice.m4.seats_status,
+                    seats.message_choice.m4.count
+            );
+        }
+        return_flag = UPDATE_SUCCESS;
+    }
+    return return_flag;
+}
+
+void async_listener(client_components client) {
+    client.update_communication.orientation = COMMQUEUE_AS_SERVER;
+
+    commqueue admin_communication = create_commqueue(QUEUE_ACTIVITY_FILE,QUEUE_ACTIVITY_CHAR);
+    admin_communication.id = client.client_id;
+    admin_communication.orientation = COMMQUEUE_AS_CLIENT;
+
+    client_write_flag_update(client, NO_SEAT_UPDATE);
+
+    int close_listener = 0;
+    while (close_listener == 0) {
+        q_message seats_update = receive_message(admin_communication);
+        printf("[CLIENT-D] An updated of seats detected (refresh to view)\n");
+        if (seats_update.message_choice_number == CHOICE_SEATS_RESPONSE) {
+            //1. Update shared memory
+            client_add_update(client);
+            //2. Send info to the father
+            send_message(client.update_communication, seats_update);
+        } else if (seats_update.message_choice_number == CHOICE_EXIT) {
+            close_listener = 1;
+        } else {
+            printf("[CLIENT-D] Cannot read message\n");
+        }
+    }
+    shm_dettach(client.update_flag);
+    exit(0);
+}
+
+int client_start_async_seat_listener(client_components &client) {
+    pid_t listener = fork();
+    if (listener == 0) {
+        async_listener(client);
+    }
+    return listener;
+}
+
+int client_close(client_components client) {
+    update_seat_from_client(client, false);
 
     q_message exit{};
     exit.message_choice_number = CHOICE_EXIT;
-    send_message(communication,exit);
-    q_message exit_from_cinema = receive_message(communication);
+    send_message(client.cinema_communication,exit);
+    q_message exit_from_cinema = receive_message(client.cinema_communication);
     if (exit_from_cinema.message_choice_number != CHOICE_EXIT) {
         printf("[CLIENT] Error after exited from cinema\n");
         return 1;
@@ -261,29 +240,24 @@ int close_client(commqueue communication, commqueue client_communication, int mu
     return 0;
 }
 
-void list_reservations(const std::vector<reservation> &reservations) {
-    int count = 1;
-    for (auto &reservation : reservations) {
-        printf("%d | Seat %d in Room %d\n", count, reservation.seat_num, reservation.room);
-        count++;
-    }
-    printf("Press <<Enter>> to continue\n");
-    char str[MAX_CLIENT_INPUT];
-    fgets(str, sizeof str, stdin);
-}
 
-int client_buy_reservations(commqueue communication, const std::vector<reservation> &reservations) {
+
+int client_buy_reservations(client_components client) {
     q_message request{};
-    request.client_id = communication.id;
+    request.client_id = client.client_id;
     request.message_choice_number = CHOICE_PAY_RESERVATION_REQUEST;
-    request.message_choice.m7.count = (int)reservations.size();
-    size_t mem_size = request.message_choice.m7.count*sizeof(reservation);
-    memset(request.message_choice.m7.list,0,mem_size);
-    memcpy(request.message_choice.m7.list,reservations.data(),mem_size);
+    request.message_choice.m7.count = (int)client.reservations.size();
+    std::copy(client.reservations.begin(),client.reservations.end(),request.message_choice.m7.list);
     printf("Sending payment, please wait...\n");
-    sleep(2);
-    send_message(communication, request);
-    q_message response = receive_message(communication);
+    for (auto reservation : client.reservations) {
+        printf("(OK) SEAT: %d - ROOM: %d\n",reservation.seat_num,reservation.room);
+        sleep(1);
+    }
+    send_message(client.cinema_communication, request);
+    q_message response = receive_message(client.cinema_communication);
+    if (response.message_choice_number != CHOICE_PAY_RESERVATION_RESPONSE) {
+        return NOT_SUCCESS;
+    }
     if (response.message_choice.m6.success == NOT_SUCCESS) {
         char *information = response.message_choice.m6.information;
         printf("Error on Buy: %s\n", information);
@@ -291,7 +265,8 @@ int client_buy_reservations(commqueue communication, const std::vector<reservati
     return response.message_choice.m6.success;
 }
 
-int client_start() {
+
+client_components client_init() {
     commqueue cinema_communication = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
     cinema_communication.orientation = COMMQUEUE_AS_CLIENT;
 
@@ -304,42 +279,62 @@ int client_start() {
     cinema_communication.id = client_id;
     client_communication.id = client_id;
 
-    printf("Welcome CLIENT %d\n", client_id);
+    void* flag = shm_get_data(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
 
-    std::vector<reservation> reservations;
+
+
+    client_components client;
+    client.cinema_communication =   cinema_communication;
+    client.update_communication =   client_communication;
+    client.client_id =              client_id;
+    client.mutex_flag_id =          mutex_shared_memory;
+    client.update_flag =            flag;
+    client.update_flag_position =   client_id % MAX_CLIENTS;
+
+    return client;
+
+}
+
+
+int client_start() {
+
+    client_components client = client_init();
+
+    printf("Welcome CLIENT %d\n", client.client_id);
+
 
     Menu:
-    int menu_selection = client_menu((int)reservations.size());
+    int menu_selection = client_menu((int)client.reservations.size());
     if (menu_selection == OPTION_MAKE_RESERVATION) {
         goto Room_Request;
     }
     if (menu_selection == OPTION_EXIT) {
-        return close_client(cinema_communication, client_communication, mutex_shared_memory);
+        return client_close(client);
     }
     if (menu_selection == OPTION_SEE_RESERVATION) {
-        list_reservations(reservations);
+        list_reservations(client.reservations);
         goto Menu;
     }
     if (menu_selection == OPTION_BUY_RESERVATION) {
-        if (client_buy_reservations(cinema_communication,reservations) != SUCCESS) {
+        if (client_buy_reservations(client) != SUCCESS) {
             goto Menu;
         }
-        const char *info = (reservations.size() == 1) ? "reservation was" : "reservations were";
-        printf("OK - %d %s purchased\n",(int)reservations.size(),info);
-        return close_client(cinema_communication, client_communication, mutex_shared_memory);
+        const char *info = (client.reservations.size() == 1) ? "reservation was" : "reservations were";
+        printf("OK - %d %s purchased\n",(int)client.reservations.size(),info);
+        return client_close(client);
     }
 
     //1.1 request rooms
     Room_Request:
     q_message rooms_request{};
     rooms_request.message_choice_number = CHOICE_ROOMS_REQUEST;
-    send_message(cinema_communication,rooms_request);
+    send_message(client.cinema_communication,rooms_request);
 
     //1.2 show rooms
-    q_message rooms = receive_message(cinema_communication);
+    q_message rooms = receive_message(client.cinema_communication);
     if ( rooms.message_choice_number != CHOICE_ROOMS_RESPONSE ) {
         if (rooms.message_choice_number == CHOICE_EXIT) {
-            update_seat_from_client(client_communication,mutex_shared_memory, false);
+            update_seat_from_client(client, false);
             printf("[CLIENT] Cinema close connection\n");
             return 0;
         }
@@ -360,12 +355,12 @@ int client_start() {
     q_message select_room_message{};
     select_room_message.message_choice_number = CHOICE_SEATS_REQUEST;
     select_room_message.message_choice.m3.room_id = room_id;
-    send_message(cinema_communication,select_room_message);
+    send_message(client.cinema_communication,select_room_message);
 
-    q_message room_information = receive_message(cinema_communication);
+    q_message room_information = receive_message(client.cinema_communication);
     if (room_information.message_choice_number != CHOICE_SEATS_RESPONSE) {
         if (room_information.message_choice_number == CHOICE_EXIT) {
-            update_seat_from_client(client_communication,mutex_shared_memory, false);
+            update_seat_from_client(client, false);
             printf("[CLIENT] Cinema close connection\n");
             return 0;
         }
@@ -379,7 +374,7 @@ int client_start() {
     }
 
     //3.1 fork listener
-    int listener_pid = client_start_async_seat_listener(client_communication, mutex_shared_memory);
+    int listener_pid = client_start_async_seat_listener(client);
     Start_Seat_Listener:
 
     //3.2 show room seating information
@@ -394,7 +389,7 @@ int client_start() {
     int selected_seat_id = client_select_seat();
     //3.4-a if see information refresh and show seeting information
     if (selected_seat_id == REFRESH_SEATS) {
-        if (update_seat_from_client(client_communication, mutex_shared_memory) == NOT_UPDATED) {
+        if (update_seat_from_client(client) == NOT_UPDATED) {
             goto Start_Seat_Listener;
         }
         printf("No update found\n");
@@ -409,13 +404,13 @@ int client_start() {
     q_message seat_select{};
     seat_select.message_choice_number = CHOICE_SEAT_SELECT_REQUEST;
     seat_select.message_choice.m5.seat_id = selected_seat_id;
-    send_message(cinema_communication, seat_select);
+    send_message(client.cinema_communication, seat_select);
 
     //4.0 If not succes goto 3
-    q_message seat_select_response = receive_message(cinema_communication);
+    q_message seat_select_response = receive_message(client.cinema_communication);
     if (seat_select_response.message_choice_number != CHOICE_SEAT_SELECT_RESPONSE) {
         if (seat_select_response.message_choice_number == CHOICE_EXIT) {
-            update_seat_from_client(client_communication,mutex_shared_memory, false);
+            update_seat_from_client(client, false);
             printf("[CLIENT] Cinema close connection\n");
             return 0;
         }
@@ -436,7 +431,7 @@ int client_start() {
     reservation reservation{};
     reservation.room = room_id;
     reservation.seat_num = selected_seat_id;
-    reservations.push_back(reservation);
+    client.reservations.push_back(reservation);
     goto Menu;
 }
 

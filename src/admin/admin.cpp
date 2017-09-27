@@ -23,15 +23,14 @@ void admin_handle_request(sqlite3 *handle,commqueue channel,q_message request) {
     switch (request.message_choice_number) {
         case CHOICE_PAY_RESERVATION_REQUEST: {
             int executed_transactions = 0;
-            int i = 0;
             while (executed_transactions < request.message_choice.m7.count) {
-                int res = db_update_paid_reservation(handle, request.client_id, request.message_choice.m7.list[i]);
+                int res = db_update_paid_reservation(handle, request.client_id, request.message_choice.m7.list[executed_transactions]);
                 if (res != 1) {
                     printf("[CINEMA-ADMIN] Error when updating a reservation for user_id: %d \n", request.client_id);
                     response.message_choice_number = CHOICE_INVALID_REQUEST;
                     break;
                 }
-                i++;
+                executed_transactions++;
             }
             response.message_choice_number = CHOICE_PAY_RESERVATION_RESPONSE;
             response.message_choice.m6.success = SUCCESS;
