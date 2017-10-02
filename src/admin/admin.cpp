@@ -160,11 +160,17 @@ void admin_listen_requests(sqlite3 *handle,commqueue channel){
 
 }
 
+void clean_db_tables(sqlite3* handle) {
+    db_remove_unpaid_reservations(handle);
+    db_remove_users_in_room(handle);
+}
+
 void admin_daemon(){
     sqlite3* handle;
     db_create(handle,DATABASE_FILENAME);
     db_initialize(handle);
-
+    clean_db_tables(handle);
+    
     commqueue admin_channel = create_commqueue(QUEUE_CINEMA_ADMIN_FILE,QUEUE_CINEMA_ADMIN_CHAR);
     admin_channel.orientation = COMMQUEUE_AS_SERVER;
 

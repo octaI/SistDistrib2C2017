@@ -81,7 +81,14 @@ int db_remove_user_unpaid_reservations(sqlite3 *&database, int userid){
     return (res == SQLITE_OK);
 }
 
-int db_update_paid_reservation(sqlite3 *&database,int user_id, reservation user_reservation) {
+int db_remove_unpaid_reservations(sqlite3 *&database){
+    char *q_errmsg = 0;
+    std::string sql_query = "DELETE FROM Reservations WHERE paid_flag = 0;";
+    int res=execute_query(database,sql_query.c_str(),NULL,NULL,q_errmsg);
+    return (res == SQLITE_OK);
+}
+
+int db_update_paid_reservation(sqlite3 *&database,int user_id, Reservation user_reservation) {
     char *q_errmsg = 0;
     int room_id = user_reservation.room;
     int seat_id = user_reservation.seat_num;
@@ -187,6 +194,12 @@ int db_remove_user_in_room(sqlite3 *&database, int userid){
     std::string userid_str = std::to_string(userid);
     std::string sql_query = "DELETE FROM Clients_rooms WHERE user_id="+userid_str+";";
 
+    return (execute_query(database,sql_query,NULL,NULL,q_errmsg) == SQLITE_OK);
+}
+
+int db_remove_users_in_room(sqlite3 *&database){
+    char *q_errmsg = 0;
+    std::string sql_query = "DELETE FROM Clients_rooms;";
     return (execute_query(database,sql_query,NULL,NULL,q_errmsg) == SQLITE_OK);
 }
 

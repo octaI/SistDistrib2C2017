@@ -6,10 +6,10 @@
 
 #define MAX_CLIENT_INPUT 30
 
-void list_reservations(const std::vector<reservation> &reservations);
+void list_reservations(const std::vector<Reservation> &reservations);
 
-void print_rooms(const int *rooms, int count);
+void print_rooms(const std::vector<Room> &rooms);
 
-void print_seats(const int *seats, const int *seats_status, int count);
+void print_seats(const std::vector<Seat> &seats);
 
 #endif //DISTRIBUIDOS_CLIENT_UTILS_H

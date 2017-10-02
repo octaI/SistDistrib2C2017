@@ -56,7 +56,7 @@ typedef struct {
 
 typedef struct {
     int count;
-    reservation list[MAX_LENGTH];
+    Reservation list[MAX_LENGTH];
 } m7_seat_payments;
 
 /* Definition of message pattern */

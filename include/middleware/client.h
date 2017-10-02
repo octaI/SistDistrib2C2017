@@ -6,16 +6,22 @@
 
 int init_mom();
 
-bool login();
+bool login(int client_fd);
 
-std::vector<room> get_rooms();
+std::vector<Room> get_rooms(int client_fd);
 
-std::vector<seat> get_seats(room aRoom);
+std::vector<Seat> get_seats(int client_fd, Room aRoom);
 
-bool reserve_seat(seat aSeat);
+std::vector<Seat> update_seats(int client_fd);
 
-std::vector<reservation> get_reservations();
+bool reserve_seat(int client_fd, Seat aSeat);
 
-bool pay_seat();
+std::vector<Reservation> get_reservations(int client_fd);
+
+bool pay_seats(int client_fd);
+
+bool is_connected(int client_fd);
+
+bool end_mom(int client_fd);
 
 #endif //DISTRIBUIDOS_CLIENT_H

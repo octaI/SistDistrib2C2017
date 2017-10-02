@@ -130,7 +130,7 @@ int db_pay_reservations_test() {
     db_insert_reservation(handle,1,1,1);
     db_insert_reservation(handle,1,1,2);
     db_insert_reservation(handle,2,2,1);
-    reservation newres1,newres2;
+    Reservation newres1,newres2;
     newres1.seat_num =1;
     newres1.room = 1;
     newres2.room = 1;

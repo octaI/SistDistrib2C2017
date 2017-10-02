@@ -4,38 +4,83 @@
 #include <ipc/semaphore.h>
 #include <ipc/sharedmemory.h>
 #include <unistd.h>
-#include <signal.h>
+#include <csignal>
+#include <messages/message.h>
 #include <constants.h>
 
-#define UNDEFINED_CLIENT_ID -404
-#define LISTENER_NOT_INITIALIZED -1
+#define UNDEFINED_CLIENT_ID (-404)
+#define LISTENER_NOT_INITIALIZED (-1)
+
+#define NO_SEAT_UPDATE 0
+
+#define ERROR_NO_ERROR 0
+#define ERROR_CINEMA_CLOSE_CONNECTION 1
 
 typedef struct {
-    void* update_flag{};
-    int update_flag_position{};
-    int mutex_flag_id{};
-    int client_id{};
-    commqueue cinema_communication{};
-    commqueue update_communication{};
-    std::vector<reservation> reservations;
-    pid_t async_listener{};
+    short       type;
+    std::string info;
+} MomError;
+
+typedef struct {
+    void*                       update_flag{};
+    int                         update_flag_position{};
+    int                         mutex_flag_id{};
+    int                         client_id{};
+    commqueue                   cinema_communication{};
+    commqueue                   update_communication{};
+    std::vector<Reservation>    reservations;
+    pid_t                       async_listener{};
+    bool                        connected{};
+    MomError                    error;
 } Client;
 
 std::map<int, Client> CLIENTS;
 
+/* IPC ACCESS */
+int flag_update_read(Client client) {
+
+    semaphore_wait(client.mutex_flag_id);
+
+    int value = static_cast<int*>(client.update_flag)[client.update_flag_position];
+
+    semaphore_signal(client.mutex_flag_id);
+
+    return value;
+}
+
+void flag_update_write(Client client, int new_value) {
+
+    semaphore_wait(client.mutex_flag_id);
+
+    static_cast<int*>(client.update_flag)[client.update_flag_position] = new_value;
+
+    semaphore_signal(client.mutex_flag_id);
+
+}
+
+void flag_update_increment(Client client) {
+
+    semaphore_wait(client.mutex_flag_id);
+
+    static_cast<int*>(client.update_flag)[client.update_flag_position] = static_cast<int*>(client.update_flag)[client.update_flag_position] + 1;
+
+    semaphore_signal(client.mutex_flag_id);
+}
+/* END IPC ACCESS */
+
 int _get_key() {
+    //Local Client ID for middleware
     return getpid();
 }
 
-Client* _getClient(bool checkConnection = true) {
-    int client_key = _get_key();
+Client* _getClient(int client_key, bool checkConnection = true) {
     if ( CLIENTS.find(client_key) == CLIENTS.end() ) {
         // not found
         printf("[CLIENT-MIDDLEWAR] MOM not initialized\n");
         return nullptr;
     }
-    Client* client = &CLIENTS[_get_key()];
-    if (checkConnection && client->client_id == UNDEFINED_CLIENT_ID) {
+    Client* client = &CLIENTS[client_key];
+    if (checkConnection && client->client_id == UNDEFINED_CLIENT_ID && !client->connected) {
         printf("[CLIENT-MIDDLEWAR] Client not connected with cinema\n");
         return nullptr;
     }
@@ -43,8 +88,8 @@ Client* _getClient(bool checkConnection = true) {
 
 }
 
-void start_async_seat_listener() {
-    Client* client = _getClient();
+void start_async_seat_listener(int client_fd) {
+    Client* client = _getClient(client_fd);
     if (client == nullptr) {
         return;
     }
@@ -56,7 +101,7 @@ void start_async_seat_listener() {
         admin_communication.id = client->client_id;
         admin_communication.orientation = COMMQUEUE_AS_CLIENT;
 
-        //client_write_flag_update(client, NO_SEAT_UPDATE);
+        flag_update_write(*client, NO_SEAT_UPDATE);
 
         int close_listener = 0;
         while (close_listener == 0) {
@@ -64,7 +109,7 @@ void start_async_seat_listener() {
             printf("[CLIENT-D] An updated of seats detected (refresh to view)\n");
             if (seats_update.message_choice_number == CHOICE_SEATS_RESPONSE) {
                 //1. Update shared memory
-                //client_add_update(client);
+                flag_update_increment(*client);
                 //2. Send info to the father
                 send_message(client->update_communication, seats_update);
             } else if (seats_update.message_choice_number == CHOICE_EXIT) {
@@ -79,11 +124,11 @@ void start_async_seat_listener() {
     client->async_listener = listener;
 }
 
-void finish_async_seat_listener() {
-    Client* client = _getClient();
+void finish_async_seat_listener(int client_fd) {
+    Client* client = _getClient(client_fd);
     if (client != nullptr && client->async_listener != LISTENER_NOT_INITIALIZED) {
-        if ( kill(SIGKILL, client->async_listener) != 0) {
-            printf("[CLIENT-MIDDLEWARE] Canot finish litener. Wait to be finish with Admin");
+        if ( kill(SIGKILL, client->async_listener) == -1) {
+            printf("[CLIENT-MIDDLEWARE] Canot finish litener. Wait to be finish with Admin\n");
         }
         client->async_listener = LISTENER_NOT_INITIALIZED;
     }
@@ -129,12 +174,19 @@ int init_mom() {
     client.update_flag =            flag;
     client.update_flag_position =   0;
     client.async_listener =         LISTENER_NOT_INITIALIZED;
+    client.connected =              false;
+    client.error.info =             "";
+    client.error.type =             ERROR_NO_ERROR;
 
-    CLIENTS[_get_key()] = client;
+    int client_fd = _get_key();
+
+    CLIENTS[client_fd] = client;
+
+    return client_fd;
 }
 
-bool login() {
-    Client* client = _getClient(false);
+bool login(int client_fd) {
+    Client* client = _getClient(client_fd,false);
 
     client->client_id = _connect_to_cinema(client->cinema_communication);
 
@@ -143,13 +195,30 @@ bool login() {
 
     client->update_flag_position = client->client_id % MAX_CLIENTS;
 
+    client->connected = true;
+
     return true;
 
 }
 
-std::vector<room> get_rooms() {
-    Client* client = _getClient();
-    std::vector<room> rooms;
+bool _disconnect(Client* client, bool send = true) {
+    if (send) {
+        q_message exit{};
+        exit.message_choice_number = CHOICE_EXIT;
+        send_message(client->cinema_communication,exit);
+        q_message exit_from_cinema = receive_message(client->cinema_communication);
+        if (exit_from_cinema.message_choice_number != CHOICE_EXIT) {
+            printf("[CLIENT-MIDDLEWARE] Error after exited from cinema\n");
+            return false;
+        }
+    }
+    client->connected = false;
+}
+
+
+std::vector<Room> get_rooms(int client_fd) {
+    Client* client = _getClient(client_fd);
+    std::vector<Room> rooms;
     if (client == nullptr) {
         return rooms;
     }
@@ -162,8 +231,7 @@ std::vector<room> get_rooms() {
     q_message rooms_response = receive_message(client->cinema_communication);
     if ( rooms_response.message_choice_number != CHOICE_ROOMS_RESPONSE ) {
         if (rooms_response.message_choice_number == CHOICE_EXIT) {
-            //TODO: Close client
-            //update_seat_from_client(client, false);
+            _disconnect(client,false);
             printf("[CLIENT-MIDDLEWARE] Cinema close connection\n");
             return rooms;
         }
@@ -171,16 +239,28 @@ std::vector<room> get_rooms() {
         return rooms;
     }
     for (int i = 0; i < rooms_response.message_choice.m2.count; i++) {
-        room aRoom{};
+        Room aRoom{};
         aRoom.id = rooms_response.message_choice.m2.ids[i];
         rooms.push_back(aRoom);
     }
     return rooms;
 }
 
-std::vector<seat> get_seats(room aRoom) {
-    Client* client = _getClient();
-    std::vector<seat> seats;
+
+std::vector<Seat> _seat_to_vector(m4_seats raw_seats) {
+    std::vector<Seat> seats;
+    for (int i = 0; i < raw_seats.count; i++) {
+        Seat aSeat{};
+        aSeat.id        = raw_seats.seats_id[i];
+        aSeat.status    = (short)raw_seats.seats_status[i];
+        seats.push_back(aSeat);
+    }
+    return seats;
+}
+
+std::vector<Seat> get_seats(int client_fd,Room aRoom) {
+    Client* client = _getClient(client_fd);
+    std::vector<Seat> seats;
     if (client == nullptr) {
         return seats;
     }
@@ -193,9 +273,9 @@ std::vector<seat> get_seats(room aRoom) {
     q_message room_information = receive_message(client->cinema_communication);
     if (room_information.message_choice_number != CHOICE_SEATS_RESPONSE) {
         if (room_information.message_choice_number == CHOICE_EXIT) {
-            //TODO: Close client
-            //update_seat_from_client(client, false);
-            //printf("[CLIENT] Cinema close connection\n");
+            update_seats(client_fd);
+            _disconnect(client,false);
+            printf("[CLIENT-MIDDLEWARE] Cinema close connection\n");
             return seats;
         }
         printf("[CLIENT] Unexpected Error after CHOICE_SEATS_REQUEST\n");
@@ -208,13 +288,30 @@ std::vector<seat> get_seats(room aRoom) {
     }
 
     //3.1 fork listener
-    start_async_seat_listener();
+    start_async_seat_listener(client_fd);
 
+    return _seat_to_vector(room_information.message_choice.m4);
+}
+
+std::vector<Seat> update_seats(int client_fd) {
+    std::vector<Seat> seats;
+    Client* client = _getClient(client_fd);
+    int updates = flag_update_read(*client);
+    if (updates != NO_SEAT_UPDATE) {
+        q_message seats_update = receive_message(client->update_communication);
+        for (int i = 1; i < updates; i++) {
+            seats_update = receive_message(client->update_communication);
+        }
+        flag_update_write(*client, NO_SEAT_UPDATE);
+        if (seats_update.message_choice_number == CHOICE_SEATS_RESPONSE) {
+            return _seat_to_vector(seats_update.message_choice.m4);
+        }
+    }
     return seats;
 }
 
-bool reserve_seat(seat aSeat) {
-    Client* client = _getClient();
+bool reserve_seat(int client_fd, Seat aSeat) {
+    Client* client = _getClient(client_fd);
     if (client == nullptr) {
         return false;
     }
@@ -227,9 +324,10 @@ bool reserve_seat(seat aSeat) {
     q_message seat_select_response = receive_message(client->cinema_communication);
     if (seat_select_response.message_choice_number != CHOICE_SEAT_SELECT_RESPONSE) {
         if (seat_select_response.message_choice_number == CHOICE_EXIT) {
-
-            //update_seat_from_client(client, false);
-            //printf("[CLIENT] Cinema close connection\n");
+            update_seats(client_fd);
+            _disconnect(client,false);
+            finish_async_seat_listener(client_fd);
+            printf("[CLIENT-MIDDLEWARE] Cinema close connection\n");
             return false;
         }
         printf("[CLIENT-MIDDLEWARE] Unexpected error when select seat\n");
@@ -242,20 +340,19 @@ bool reserve_seat(seat aSeat) {
     }
 
     // Kill listener
-    finish_async_seat_listener();
+    finish_async_seat_listener(client_fd);
 
     //4.1 else show seating information and exit.
-    printf("[CLIENT-MIDDLEWARE] SUCCESS: Reserved SEAT %d in ROOM %d\n",aSeat.id, aSeat.room_id);
-    reservation reservation{};
+    Reservation reservation{};
     reservation.room = aSeat.room_id;
     reservation.seat_num = aSeat.id;
     client->reservations.push_back(reservation);
     return true;
 }
 
-std::vector<reservation> get_reservations() {
-    Client* client = _getClient();
-    std::vector<reservation> reservations;
+std::vector<Reservation> get_reservations(int client_fd) {
+    Client* client = _getClient(client_fd);
+    std::vector<Reservation> reservations;
     if (client == nullptr) {
         return reservations;
     }
@@ -264,8 +361,9 @@ std::vector<reservation> get_reservations() {
 }
 
 
-bool pay_seats() {
-    Client* client = _getClient();
+
+bool pay_seats(int client_fd) {
+    Client* client = _getClient(client_fd);
     if (client == nullptr) {
         return false;
     }
@@ -282,12 +380,38 @@ bool pay_seats() {
     send_message(client->cinema_communication, request);
     q_message response = receive_message(client->cinema_communication);
     if (response.message_choice_number != CHOICE_PAY_RESERVATION_RESPONSE) {
+        if (response.message_choice_number == CHOICE_EXIT) {
+            update_seats(client_fd);
+            _disconnect(client,false);
+            printf("[CLIENT-MIDDLEWARE] Cinema close connection\n");
+        }
         return false;
     }
     if (response.message_choice.m6.success == NOT_SUCCESS) {
         char *information = response.message_choice.m6.information;
-        printf("[CLIENT-MIDDLEWARE]Error on Buy: %s\n", information);
+        printf("[CLIENT-MIDDLEWARE] Error on Buy: %s\n", information);
         return false;
     }
+    return true;
+}
+
+bool is_connected(int client_fd) {
+    Client* client = _getClient(client_fd);
+    return client != nullptr && client->connected;
+}
+
+bool end_mom(int client_fd) {
+    Client* client = _getClient(client_fd);
+    if (client == nullptr) {
+        return true;
+    }
+    update_seats(client_fd);
+
+    if (!_disconnect(client)) {
+        return false;
+    }
+
+    CLIENTS.erase(client_fd);
+
     return true;
 }

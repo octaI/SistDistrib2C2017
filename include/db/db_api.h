@@ -22,12 +22,14 @@ int db_insert_seats(sqlite3 *&database, int roomid, int seatid);
 int db_insert_reservation(sqlite3 *&database, int userid, int roomid, int seatid);
 int db_insert_user_in_room(sqlite3 *&database, int userid, int roomid);
 
-int db_update_paid_reservation(sqlite3 *&database,int user_id, reservation user_reservation);
+int db_update_paid_reservation(sqlite3 *&database,int user_id, Reservation user_reservation);
 
 int db_login_user(sqlite3 *&database, int user_id);
 
 int db_remove_user_in_room(sqlite3 *&database, int userid);
+int db_remove_users_in_room(sqlite3 *&database);
 int db_remove_user_unpaid_reservations(sqlite3 *&database, int userid);
+int db_remove_unpaid_reservations(sqlite3 *&database);
 int db_logout_user(sqlite3 *&database, int user_id);
 
 void db_select_user(sqlite3 *database, int userid);

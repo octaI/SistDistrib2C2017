@@ -11,7 +11,7 @@
 
 #include <csignal>
 #include <client/client_utils.h>
-
+#include <middleware/client.h>
 
 
 #define REFRESH_SEATS (-500)
@@ -20,7 +20,6 @@
 #define UPDATE_SUCCESS 1
 #define NOT_UPDATED 0
 
-#define NO_SEAT_UPDATE 0
 
 /**
  * SIMPLE TERMINAL UI
@@ -103,7 +102,7 @@ int client_menu(int count_reservations) {
  * END UI
  */
 
-
+/*
 typedef struct {
     void* update_flag{};
     int update_flag_position{};
@@ -111,11 +110,10 @@ typedef struct {
     int client_id{};
     commqueue cinema_communication{};
     commqueue update_communication{};
-    std::vector<reservation> reservations;
+    std::vector<Reservation> reservations;
 } client_components;
 
 int client_read_flag_update(client_components client) {
-    /* Critic section */
 
     semaphore_wait(client.mutex_flag_id);
 
@@ -400,7 +398,7 @@ int client_start() {
         goto Print_Rooms;
     }
     
-    //3,4-b else request to select seat
+    //3,4-b else request to select Seat
     q_message seat_select{};
     seat_select.message_choice_number = CHOICE_SEAT_SELECT_REQUEST;
     seat_select.message_choice.m5.seat_id = selected_seat_id;
@@ -428,14 +426,127 @@ int client_start() {
 
     //4.1 else show seating information and exit.
     printf("SUCCESS: Reserved SEAT %d in ROOM %d\n",selected_seat_id, room_id);
-    reservation reservation{};
+    Reservation reservation{};
     reservation.room = room_id;
     reservation.seat_num = selected_seat_id;
     client.reservations.push_back(reservation);
     goto Menu;
 }
+*/
+
+
+int client_close(int fd) {
+    return end_mom(fd) ? 0 : 1;
+}
+
+int client_start2() {
+
+    int mom_fd = init_mom();
+
+    if (!login(mom_fd)) {
+        printf("Cannot login with client\n");
+        return 1;
+    }
+    printf("Welcome CLIENT\n");
+
+
+    Menu:
+    int reservations_count = (int)get_reservations(mom_fd).size();
+    int menu_selection = client_menu(reservations_count);
+    if (menu_selection == OPTION_MAKE_RESERVATION) {
+        goto Room_Request;
+    }
+    if (menu_selection == OPTION_EXIT) {
+        return client_close(mom_fd);;
+    }
+    if (menu_selection == OPTION_SEE_RESERVATION) {
+        list_reservations(get_reservations(mom_fd));
+        goto Menu;
+    }
+    if (menu_selection == OPTION_BUY_RESERVATION) {
+        if (!pay_seats(mom_fd)) {
+            goto Menu;
+        }
+        const char *info = (reservations_count == 1) ? "reservation was" : "reservations were";
+        printf("OK - %d %s purchased\n",reservations_count,info);
+        return client_close(mom_fd);
+    }
+
+    //1.1 request rooms
+    Room_Request:
+    std::vector<Room> rooms = get_rooms(mom_fd);
+    if (!is_connected(mom_fd)) {
+        return client_close(mom_fd);
+    }
+    if (rooms.empty()) {
+        printf("Cannot get rooms\n");
+        goto Menu;
+    }
+
+    Print_Rooms:
+    print_rooms(rooms);
+
+
+    //2 select room
+    Select_Room:
+    Room selected_room{};
+    selected_room.id = client_select_room();
+
+    if (selected_room.id == GO_BACK) {
+        goto Menu;
+    }
+
+    std::vector<Seat> seats = get_seats(mom_fd, selected_room);
+    if (!is_connected(mom_fd)) {
+        return client_close(mom_fd);
+    }
+    if (seats.empty()) {
+        printf("Cannot get seats for ROOM %d\n", selected_room.id);
+        goto Select_Room;
+    }
+
+
+    //3.2 show room seating information
+    Print_Seats:
+    print_seats(seats);
+
+    Seat_Select:
+    //3.3 option to see information and option to select
+    int selected_seat_id = client_select_seat();
+
+    //3.4-a if see information refresh and show seeting information
+    if (selected_seat_id == REFRESH_SEATS) {
+        std::vector<Seat> seats_u = update_seats(mom_fd);
+        if (seats_u.empty()) {
+            printf("No update found\n");
+            goto Seat_Select;
+        }
+        seats = seats_u;
+        goto Print_Seats;
+
+    }
+    if (selected_seat_id == GO_BACK) {
+        goto Print_Rooms;
+    }
+
+    Seat selected_seat{};
+    selected_seat.id = selected_seat_id;
+    selected_seat.room_id = selected_room.id;
+
+    if (reserve_seat(mom_fd, selected_seat) ) {
+        //4.1 else show seating information and exit.
+        printf("SUCCESS: Reserved SEAT %d in ROOM %d\n",selected_seat_id, selected_room.id);
+        goto Menu;
+    } else {
+        printf("ERROR: Cannot reserve SEAT %d in ROOM %d\n",selected_seat_id, selected_room.id);
+        goto Seat_Select;
+    }
+
+
+}
+
 
 
 int main() {
-    return client_start();
+    return client_start2();
 }

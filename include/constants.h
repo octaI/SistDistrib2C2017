@@ -4,17 +4,18 @@
 /* -------------------------------------------------------*/
 typedef struct {
     int id;
-} room;
+} Room;
 
 typedef struct {
     int id;
     int room_id;
-} seat;
+    short status;
+} Seat;
 
 typedef struct {
     int room;
     int seat_num;
-} reservation;
+} Reservation;
 
 
 /* -------------------------------------------------------*/
