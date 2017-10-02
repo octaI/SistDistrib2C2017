@@ -100,7 +100,7 @@ int client_menu(int count_reservations) {
 
 
 /**
- * EN UI
+ * END UI
  */
 
 

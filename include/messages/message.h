@@ -3,6 +3,8 @@
 
 /* definition of general constants in messages */
 
+#include <constants.h>
+
 #define MAX_LENGTH 500
 #define MAX_ROOMS 100
 #define MAX_SEATS 300
@@ -13,12 +15,6 @@
 #define NOT_SUCCESS 1
 #define SUCCESS 0
 
-/* definition of other structs */
-
-typedef struct {
-    int room;
-    int seat_num;
-} reservation;
 
 /* Definition message */
 

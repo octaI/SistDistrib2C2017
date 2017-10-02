@@ -5,6 +5,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 add_executable(client
         client.cpp # main()
-        ../../include/utils/TextTable.h ../../include/client/client_utils.h client_utils.cpp)
+        ../../include/utils/TextTable.h ../../include/client/client_utils.h client_utils.cpp ../../include/middleware/client.h ../middleware/client.cpp)
 
 target_link_libraries(client common)

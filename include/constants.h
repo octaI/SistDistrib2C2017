@@ -2,6 +2,22 @@
 #define DISTRIBUIDOS_CONSTANTS_H
 
 /* -------------------------------------------------------*/
+typedef struct {
+    int id;
+} room;
+
+typedef struct {
+    int id;
+    int room_id;
+} seat;
+
+typedef struct {
+    int room;
+    int seat_num;
+} reservation;
+
+
+/* -------------------------------------------------------*/
 
 #define MAX_CLIENTS 1000
 
