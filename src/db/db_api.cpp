@@ -186,7 +186,7 @@ int db_insert_user_in_room(sqlite3 *&database, int userid, int roomid) {
     std::string sql_query = "INSERT INTO Clients_rooms(user_id,room_id) VALUES(" + std::to_string(userid) + ","
                             + std::to_string(roomid) + ");";
 
-    return (execute_query(database,sql_query,NULL,NULL,q_errmsg) != SQLITE_OK);
+    return (execute_query(database,sql_query,NULL,NULL,q_errmsg) == SQLITE_OK);
 }
 
 int db_remove_user_in_room(sqlite3 *&database, int userid){
