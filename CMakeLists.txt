@@ -22,6 +22,7 @@ add_library(cinema-common
 add_subdirectory("src/utils")
 add_subdirectory("src/cinema")
 add_subdirectory("src/client")
+add_subdirectory("src/middleware")
 #add_subdirectory("src/admin")
 add_subdirectory("test")
 add_subdirectory("test/db_test")

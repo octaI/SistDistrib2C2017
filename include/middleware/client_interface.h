@@ -3,6 +3,12 @@
 
 #include <constants.h>
 #include <vector>
+#include <string>
+
+typedef struct {
+    short       type{};
+    std::string info{};
+} MomError;
 
 int init_mom();
 
@@ -21,6 +27,10 @@ std::vector<Reservation> get_reservations(int client_fd);
 bool pay_seats(int client_fd);
 
 bool is_connected(int client_fd);
+
+bool is_error(int client_fd);
+
+MomError get_error(int client_fd);
 
 bool end_mom(int client_fd);
 

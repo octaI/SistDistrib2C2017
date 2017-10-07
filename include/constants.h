@@ -57,6 +57,9 @@ typedef struct {
 #define MUTEX_CINEMA_CHAR 'x'
 #define MUTEX_CINEMA_INIT_VALUE 1
 
+#define QUEUE_MOM_FILE "/bin/ls"
+#define QUEUE_MOM_CHAR 'a'
+
 /* ---Definition of channel constants between known communications in the system */
 
 #define CINEMA_TO_CLIENT 1
@@ -66,6 +69,8 @@ typedef struct {
 
 
 #define ADMIN_REQUEST 1
+
+#define TYPE_CONNECTON_MOM_REQUEST 2
 
 #define DATABASE_FILENAME "main_db.db"
 

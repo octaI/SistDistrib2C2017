@@ -11,7 +11,7 @@
 
 #include <csignal>
 #include <client/client_utils.h>
-#include <middleware/client.h>
+#include <middleware/client_interface.h>
 
 
 #define REFRESH_SEATS (-500)
@@ -516,7 +516,7 @@ int client_start2() {
 
     //3.4-a if see information refresh and show seeting information
     if (selected_seat_id == REFRESH_SEATS) {
-        std::vector<Seat> seats_u = update_seats(mom_fd);
+        std::vector<Seat> seats_u;//TODO: update_seats(mom_fd);
         if (seats_u.empty()) {
             printf("No update found\n");
             goto Seat_Select;
