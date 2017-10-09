@@ -10,6 +10,7 @@
 #include <ipc/semaphore.h>
 
 #include <csignal>
+#include <utility>
 #include <client/client_utils.h>
 #include <middleware/client_interface.h>
 
@@ -17,9 +18,7 @@
 #define REFRESH_SEATS (-500)
 #define GO_BACK (-135)
 
-#define UPDATE_SUCCESS 1
-#define NOT_UPDATED 0
-
+#define POLLING_INTERVAL_SEAT 1
 
 /**
  * SIMPLE TERMINAL UI
@@ -147,7 +146,7 @@ int client_connect_to_cinema(commqueue communication) {
     auto client_id = (int)getpid();
 
     q_message request_connect{};
-    request_connect.message_type = TYPE_CONNECTION_REQUEST;
+    request_connect.message_type = TYPE_CONNECTION_CINEMA_REQUEST;
     request_connect.message_choice.m1.client_id = client_id;
 
     send_message(communication,request_connect);
@@ -439,12 +438,37 @@ int client_close(int fd) {
     return end_mom(fd) ? 0 : 1;
 }
 
-int client_start2() {
+bool client_look_error(int fd) {
+    if (is_error(fd)) {
+        MomError error = get_error(fd);
+        printf("%s\n",error.info.c_str());
+        return true;
+    }
+    return false;
+}
+
+
+typedef struct {
+    std::vector<Seat> seats{};
+    bool an_update{};
+} on_update_arguments;
+
+void on_update(std::vector<Seat> seats_update, void* arguments) {
+    auto data = (on_update_arguments*)arguments;
+    data->seats = seats_update;
+    data->an_update = true;
+    printf("\nThere is an update on the state of the seats (%d). Please refresh\n Select option: ", (int)seats_update.size());
+}
+
+int client_start() {
 
     int mom_fd = init_mom();
+    if (client_look_error(mom_fd)) {
+        return 1;
+    }
 
     if (!login(mom_fd)) {
-        printf("Cannot login with client\n");
+        client_look_error(mom_fd);
         return 1;
     }
     printf("Welcome CLIENT\n");
@@ -475,11 +499,10 @@ int client_start2() {
     //1.1 request rooms
     Room_Request:
     std::vector<Room> rooms = get_rooms(mom_fd);
-    if (!is_connected(mom_fd)) {
-        return client_close(mom_fd);
-    }
-    if (rooms.empty()) {
-        printf("Cannot get rooms\n");
+    if (client_look_error(mom_fd)) {
+        if (!is_connected(mom_fd)) {
+            return client_close(mom_fd);
+        }
         goto Menu;
     }
 
@@ -489,20 +512,29 @@ int client_start2() {
 
     //2 select room
     Select_Room:
-    Room selected_room{};
-    selected_room.id = client_select_room();
-
-    if (selected_room.id == GO_BACK) {
+    int selected_room_id = client_select_room();
+    if (selected_room_id == GO_BACK) {
         goto Menu;
     }
 
-    std::vector<Seat> seats = get_seats(mom_fd, selected_room);
-    if (!is_connected(mom_fd)) {
-        return client_close(mom_fd);
-    }
-    if (seats.empty()) {
-        printf("Cannot get seats for ROOM %d\n", selected_room.id);
-        goto Select_Room;
+    Room selected_room{};
+    selected_room.id = selected_room_id;
+
+
+    on_update_arguments update_args;
+    update_args.an_update = false;
+
+    on_seat_update_data update_data{};
+    update_data.polling_interval_sec = POLLING_INTERVAL_SEAT;
+    update_data.on_seat_update = &on_update;
+    update_data.arguments = &update_args;
+
+    std::vector<Seat> seats = get_seats(mom_fd, selected_room, &update_data);
+    if (client_look_error(mom_fd)) {
+        if (!is_connected(mom_fd)) {
+            return client_close(mom_fd);
+        }
+        goto Menu;
     }
 
 
@@ -513,34 +545,34 @@ int client_start2() {
     Seat_Select:
     //3.3 option to see information and option to select
     int selected_seat_id = client_select_seat();
-
-    //3.4-a if see information refresh and show seeting information
-    if (selected_seat_id == REFRESH_SEATS) {
-        std::vector<Seat> seats_u;//TODO: update_seats(mom_fd);
-        if (seats_u.empty()) {
-            printf("No update found\n");
-            goto Seat_Select;
-        }
-        seats = seats_u;
-        goto Print_Seats;
-
-    }
     if (selected_seat_id == GO_BACK) {
         goto Print_Rooms;
     }
+    //3.4-a if see information refresh and show seeting information
+    if (selected_seat_id == REFRESH_SEATS) {
+        if (!update_args.an_update) {
+            printf("No update\n");
+            goto Seat_Select;
+        }
+        seats = update_args.seats;
+        update_args.an_update = false;
+        goto Print_Seats;
+
+    }
+
 
     Seat selected_seat{};
     selected_seat.id = selected_seat_id;
     selected_seat.room_id = selected_room.id;
 
-    if (reserve_seat(mom_fd, selected_seat) ) {
-        //4.1 else show seating information and exit.
-        printf("SUCCESS: Reserved SEAT %d in ROOM %d\n",selected_seat_id, selected_room.id);
+    if ( reserve_seat(mom_fd, selected_seat) ) {
         goto Menu;
-    } else {
-        printf("ERROR: Cannot reserve SEAT %d in ROOM %d\n",selected_seat_id, selected_room.id);
-        goto Seat_Select;
     }
+    if (client_look_error(mom_fd) && !is_connected(mom_fd)) {
+        return client_close(mom_fd);
+    }
+    printf("ERROR: Cannot reserve SEAT %d in ROOM %d\n",selected_seat_id, selected_room.id);
+    goto Seat_Select;
 
 
 }
@@ -548,5 +580,5 @@ int client_start2() {
 
 
 int main() {
-    return client_start2();
+    return client_start();
 }

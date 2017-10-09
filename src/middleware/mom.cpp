@@ -3,6 +3,9 @@
 #include <csignal>
 #include <ipc/sharedmemory.h>
 #include <ipc/semaphore.h>
+#include <constants.h>
+#include <messages/message.h>
+#include <cstring>
 
 #define UNDEFINED_CINEMA_CLIENT_ID (-1) //User not connected
 #define UNDEFINED_LOCAL_CLIENT_ID (-1)
@@ -25,45 +28,39 @@ typedef struct {
 
 
 /* IPC ACCESS */
-int flag_update_read(Mom mom) {
+Seats_update flag_update_read(Mom mom) {
 
     semaphore_wait(mom.update_flag_mutex);
 
-    int value = static_cast<int*>(mom.update_flag)[mom.update_flag_position];
+    Seats_update value = static_cast<Seats_update*>(mom.update_flag)[mom.update_flag_position];
 
     semaphore_signal(mom.update_flag_mutex);
 
     return value;
 }
 
-void flag_update_write(Mom mom, int new_value) {
+void flag_update_write(Mom mom, Seats_update update) {
 
     semaphore_wait(mom.update_flag_mutex);
 
-    static_cast<int*>(mom.update_flag)[mom.update_flag_position] = new_value;
+    static_cast<Seats_update*>(mom.update_flag)[mom.update_flag_position] = update;
 
     semaphore_signal(mom.update_flag_mutex);
 
-}
-
-void flag_update_increment(Mom mom) {
-
-    semaphore_wait(mom.update_flag_mutex);
-
-    static_cast<int*>(mom.update_flag)[mom.update_flag_position] = static_cast<int*>(mom.update_flag)[mom.update_flag_position] + 1;
-
-    semaphore_signal(mom.update_flag_mutex);
 }
 /* END IPC ACCESS */
 
 Mom start_mom() {
+    // MESSAGE FROM CLIENT INTERFACE
     commqueue client = create_commqueue(QUEUE_MOM_FILE, QUEUE_MOM_CHAR);
     client.orientation = COMMQUEUE_AS_SERVER;
 
+    //MESSAGE TO CINEMA
     commqueue cinema_communication = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
     cinema_communication.orientation = COMMQUEUE_AS_CLIENT;
 
-    commqueue listener_communication = create_commqueue(QUEUE_CLIENT_FILE, QUEUE_CLIENT_CHAR);
+    //MESSAGES FROM ADMIN
+    commqueue listener_communication = create_commqueue(QUEUE_ACTIVITY_FILE, QUEUE_ACTIVITY_CHAR);
     listener_communication.orientation = COMMQUEUE_AS_CLIENT;
 
     int mutex_shared_memory = semaphore_get(MUTEX_CLIENT_FILE, MUTEX_CLIENT_CHAR);
@@ -88,46 +85,55 @@ Mom start_mom() {
 }
 
 int connect_client(Mom mom) {
-    q_message connect_request = receive_message(mom.client_queue, TYPE_CONNECTON_MOM_REQUEST);
+    q_message connect_request = receive_message(mom.client_queue, TYPE_CONNECTION_MOM_REQUEST);
     int client_local_id = connect_request.message_choice.m1.client_id;
+    printf("[MOM] Client %d send to connect\n", client_local_id);
     mom.client_queue.id = client_local_id;
 
     q_message connect_response{};
     connect_response.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
+    connect_response.message_choice.m1.client_id = client_local_id % MAX_CLIENTS_HOST;
     send_message(mom.client_queue, connect_response);
 
     return client_local_id;
 }
 
 
-#define NO_SEAT_UPDATE 0
-
 void start_async_seat_listener(Mom *mom) {
+    if (mom->listener_pid != LISTENER_NOT_INITIALIZED) {
+        return;
+    }
     pid_t listener = fork();
     if (listener == 0) {
-        mom->listener_queue.orientation = COMMQUEUE_AS_SERVER;
+        printf("[MOM-LISTENER] Seat listener for CLIENT %d started with PID: %d\n", mom->client_local_id, getpid());
 
-        commqueue admin_communication = create_commqueue(QUEUE_ACTIVITY_FILE,QUEUE_ACTIVITY_CHAR);
-        admin_communication.id = mom->client_cinema_id;
-        admin_communication.orientation = COMMQUEUE_AS_CLIENT;
+        Seats_update no_update{};
+        no_update.update = NOT_SUCCESS;
+        no_update.count = 0;
 
-        flag_update_write(*mom, NO_SEAT_UPDATE);
+        flag_update_write(*mom, no_update);
 
         int close_listener = 0;
         while (close_listener == 0) {
-            q_message seats_update = receive_message(admin_communication);
-            printf("[CLIENT-D] An updated of seats detected (refresh to view)\n");
+            q_message seats_update = receive_message(mom->listener_queue);
+            printf("[MOM-LISTENER] An updated of seats detected. Turn over Shared Memory in POS = %d\n", mom->update_flag_position);
             if (seats_update.message_choice_number == CHOICE_SEATS_RESPONSE) {
                 //1. Update shared memory
-                flag_update_increment(*mom);
-                //2. Send info to the father
-                send_message(mom->listener_queue, seats_update);
+                Seats_update update{};
+                update.update = SUCCESS;
+                update.count = seats_update.message_choice.m4.count;
+                for (int i = 0; i < update.count; i++) {
+                    Seat seat{};
+                    seat.status = seats_update.message_choice.m4.seats_status[i];
+                    seat.id = seats_update.message_choice.m4.seats_id[i];
+                    update.seats[i] = seat;
+                }
+                flag_update_write(*mom, update);
             } else if (seats_update.message_choice_number == CHOICE_EXIT) {
                 close_listener = 1;
-            } else {
-                printf("[CLIENT-D] Cannot read message\n");
             }
         }
+        printf("[MOM-LISTENER] Seat listener for CLIENT %d with PID: %d terminated\n", mom->client_local_id, getpid());
         shm_dettach(mom->update_flag);
         exit(0);
     }
@@ -136,26 +142,27 @@ void start_async_seat_listener(Mom *mom) {
 
 void finish_async_seat_listener(Mom *mom) {
     if (mom->listener_pid != LISTENER_NOT_INITIALIZED) {
+        printf("[MOM] Attemp to kill listener with PID: %d\n",mom->listener_pid);
         if ( kill(SIGKILL, mom->listener_pid) == -1) {
-            printf("[CLIENT-MIDDLEWARE] Cannot finish listener. Wait to be finish with Admin\n");
+            printf("[MOM] Cannot finish listener. Wait to be finish with Admin (%s)\n", strerror(errno));
         }
         mom->listener_pid = LISTENER_NOT_INITIALIZED;
     }
 }
 
 
-bool process_message(Mom *mom, q_message cinema_message) {
-    bool return_value = false;
-    int choice = cinema_message.message_choice_number;
-    switch (choice) {
+void process_message(Mom *mom, q_message cinema_message, bool *exit) {
+    switch (cinema_message.message_choice_number) {
         case CHOICE_CONNECTION_ACCEPTED: {
             mom->client_cinema_id = cinema_message.message_choice.m1.client_id;
-            mom->update_flag_position = mom->client_cinema_id % MAX_CLIENTS;
+            mom->cinema_queue.id = mom->client_cinema_id;
+            mom->listener_queue.id = mom->client_cinema_id;
             break;
         }
 
-        case CHOICE_SEAT_SELECT_REQUEST: {
+        case CHOICE_SEATS_RESPONSE: {
             start_async_seat_listener(mom);
+            break;
         }
         case CHOICE_SEAT_SELECT_RESPONSE: {
             if(cinema_message.message_choice.m6.success == SUCCESS) {
@@ -163,15 +170,18 @@ bool process_message(Mom *mom, q_message cinema_message) {
             }
             break;
         }
+        case CHOICE_ROOMS_RESPONSE:
+            finish_async_seat_listener(mom);
+            break;
 
         case CHOICE_EXIT : {
             finish_async_seat_listener(mom);
-            return_value = true;
+            *exit = true;
+            break;
         }
         default:
             break;
     }
-    return return_value;
 }
 
 void fork_client(Mom mom, int client_local_id) {
@@ -180,22 +190,30 @@ void fork_client(Mom mom, int client_local_id) {
 
     mom.client_local_id = client_local_id;
     mom.client_queue.id = mom.client_local_id;
+    mom.update_flag_position = client_local_id % MAX_CLIENTS_HOST;
+    printf("[MOM] Connected and waiting request from client %d in PID: %d\n", client_local_id, (int)getpid());
     bool exit_listener = false;
     while (!exit_listener) {
         q_message client_request = receive_message(mom.client_queue);
+
         send_message(mom.cinema_queue, client_request);
 
-        q_message cinema_response = receive_message(mom.cinema_queue);
+        q_message cinema_response = (mom.client_cinema_id != UNDEFINED_CINEMA_CLIENT_ID) ?
+                    receive_message(mom.cinema_queue) : receive_message(mom.cinema_queue, client_local_id);
+
         send_message(mom.client_queue, cinema_response);
 
-        exit_listener = process_message(&mom, cinema_response);
+        process_message(&mom, cinema_response, &exit_listener);
+
     }
+    printf("[MOM] End connection with client %d in PID: %d\n", client_local_id, (int)getpid());
     exit(0);
 }
 
 int main() {
     Mom mom = start_mom();
     while (true) {
+        printf("[MOM-SERVICE] Waiting for init_mom()\n");
         int client_local_id = connect_client(mom);
         fork_client(mom, client_local_id);
     }

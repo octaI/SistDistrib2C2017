@@ -7,4 +7,4 @@ add_executable(client
         client.cpp # main()
         ../../include/utils/TextTable.h ../../include/client/client_utils.h client_utils.cpp ../../include/middleware/client_interface.h ../middleware/client_interface.cpp)
 
-target_link_libraries(client common)
+target_link_libraries(client common pthread)

@@ -3,7 +3,7 @@
 
 int main(){
     sqlite3 *handler;
-    std::string filename = "../cinema/" + std::string(DATABASE_FILENAME);
+    std::string filename = std::string(DATABASE_FILENAME);
     //db_delete(handler, filename);
 
     sqlite3_open(filename.c_str(),&handler);
@@ -12,6 +12,8 @@ int main(){
 
     //db_insert_user(handler);
     db_insert_user(handler);
+    db_insert_user(handler);
+
     db_insert_room(handler);
     db_insert_room(handler);
     db_insert_room(handler);

@@ -17,18 +17,19 @@
 #define TIMER_POLLING 2
 #define CONNECTION_TIMEDOUT -1
 
+
 void send_confirmation(commqueue communication, int client_id) {
     q_message confirmation{};
     confirmation.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
     confirmation.message_choice.m1.client_id = client_id;
     send_message(communication,confirmation);
-    printf("[CINEMA] Connected with CLIENT %d who send me with type %d\n", client_id, communication.id);
+    printf("[CINEMA] Connected with CLIENT %d who send me with token %d\n", client_id, communication.id);
 }
 
 int cinema_take_client(commqueue client_communication, commqueue admin_communication) {
     //TAKE CLIENT FROM QUEUE
     printf("[CINEMA] Waiting connection request\n");
-    q_message message = receive_message(client_communication,TYPE_CONNECTION_REQUEST);
+    q_message message = receive_message(client_communication,TYPE_CONNECTION_CINEMA_REQUEST);
     int client_id = message.message_choice.m1.client_id;
     client_communication.id = client_id;
 
@@ -47,8 +48,9 @@ int cinema_take_client(commqueue client_communication, commqueue admin_communica
     send_confirmation(client_communication, client_id);
 
     pid_t pid;
-    while ((pid = waitpid(-1, 0, WNOHANG)) > 1) {
+    while ((pid = waitpid(-1, nullptr, WNOHANG)) > 1) {
         //Listener (pid) destroyed
+        printf("[CINEMA] ** CHILD FINISHED **\n");
     }
     return client_id; //client_pid
 }

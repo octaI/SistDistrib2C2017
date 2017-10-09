@@ -24,7 +24,7 @@ void print_rooms(const std::vector<Room> &rooms) {
         table.endOfRow();
     }
     table.setAlignment(0, TextTable::Alignment::RIGHT);
-    std::cout << table << std::endl;
+    std::cout << std::endl << table << std::endl;
 }
 
 void print_seats(const std::vector<Seat> &seats) {
@@ -43,6 +43,6 @@ void print_seats(const std::vector<Seat> &seats) {
     }
     table.setAlignment(0,TextTable::Alignment::RIGHT);
     table.setAlignment(1,TextTable::Alignment::RIGHT);
-    std::cout << table << std::endl;
+    std::cout << std::endl << table << std::endl;
 
 }

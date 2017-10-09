@@ -10,15 +10,19 @@ typedef struct {
     std::string info{};
 } MomError;
 
+typedef struct {
+    unsigned int polling_interval_sec;
+    void (*on_seat_update)(std::vector<Seat>, void*);
+    void* arguments;
+} on_seat_update_data;
+
 int init_mom();
 
 bool login(int client_fd);
 
 std::vector<Room> get_rooms(int client_fd);
 
-std::vector<Seat> get_seats(int client_fd, Room aRoom);
-
-std::vector<Seat> update_seats(int client_fd);
+std::vector<Seat> get_seats(int client_fd, Room aRoom, on_seat_update_data* on_update_data);
 
 bool reserve_seat(int client_fd, Seat aSeat);
 

@@ -3,7 +3,10 @@
 #include <map>
 #include <unistd.h>
 #include <csignal>
-#include <messages/message.h>
+#include <ipc/semaphore.h>
+#include <ipc/sharedmemory.h>
+#include <pthread.h>
+#include <constants.h>
 
 
 #define ERROR_NO_ERROR 0
@@ -16,12 +19,23 @@
 
 #define UNDEFINED_ID (-123)
 
+
 typedef struct {
     commqueue                   mom_queue{};
+
+    pthread_t                   listener_thread{};
+    void*                       listener_updates{};
+    int                         listener_updates_mutex{};
+    int                         listener_updates_position{};
+    on_seat_update_data*        listener_extern_data{};
+
     std::vector<Reservation>    reservations{};
+
     int                         local_id{};
     int                         cinema_id{};
+
     bool                        connected{};
+
     MomError                    error{};
 } Client;
 
@@ -32,15 +46,16 @@ int _get_local_id() {
     return getpid();
 }
 
-Client* _getClient(int client_key, bool checkConnection = true) {
+Client* _getClient(int client_key, bool checkConnection = true, bool checkExists = true) {
     if ( CLIENTS.find(client_key) == CLIENTS.end() ) {
         // not found
-        printf("[CLIENT-MIDDLEWAR] MOM not initialized\n");
+        if (checkExists)
+            printf("[CLIENT-INTERFACE] MOM not initialized\n");
         return nullptr;
     }
     Client* client = &CLIENTS[client_key];
     if (checkConnection && !client->connected) {
-        printf("[CLIENT-MIDDLEWAR] Client not connected with cinema\n");
+        printf("[CLIENT-INTERFACE] Client not connected with cinema\n");
         return nullptr;
     }
     return client;
@@ -58,18 +73,17 @@ int _connect_to_cinema(Client client) {
     int client_token = client.local_id;
 
     q_message request_connect_to_cinema{};
-    request_connect_to_cinema.message_type = TYPE_CONNECTION_REQUEST;
+    request_connect_to_cinema.message_type = TYPE_CONNECTION_CINEMA_REQUEST;
     request_connect_to_cinema.message_choice.m1.client_id = client_token;
 
     send_message(client.mom_queue,request_connect_to_cinema);
-    printf("[CLIENT-INTERFACE token - %d] Attemp to connect with cinema\n",client_token);
+    printf("[CLIENT-INTERFACE token: %d] Attemp to connect with cinema\n",client_token);
 
-    client.mom_queue.id = client_token;
     q_message response = receive_message(client.mom_queue);
     int client_cinema_id;
     if (response.message_choice_number == CHOICE_CONNECTION_ACCEPTED) {
         client_cinema_id = response.message_choice.m1.client_id;
-        printf("[CLIENT-INTERFACE token=%d] Connection accepted. cinema_id=%d\n",client_token,client_cinema_id);
+        printf("[CLIENT-INTERFACE token: %d] Connection accepted. cinema_id: %d\n",client_token,client_cinema_id);
     } else {
         client_cinema_id = UNDEFINED_ID;
     }
@@ -79,7 +93,7 @@ int _connect_to_cinema(Client client) {
 
 int init_mom() {
     int client_local_id = _get_local_id();
-    Client* client_exists = _getClient(client_local_id, false);
+    Client* client_exists = _getClient(client_local_id, false, false);
     if (client_exists != nullptr) {
         client_exists->error.type = ERROR_MOM_ALREADY_INIT;
         client_exists->error.info = "Error. MOM is already initialized";
@@ -89,30 +103,36 @@ int init_mom() {
     commqueue mom_queue = create_commqueue(QUEUE_MOM_FILE, QUEUE_MOM_CHAR);
     mom_queue.orientation = COMMQUEUE_AS_CLIENT;
 
+    int listener_updates_mutex = semaphore_get(MUTEX_CLIENT_FILE, MUTEX_CLIENT_CHAR);
+
+    void* listener_updates = shm_get_data(SHM_CLIENT_FILE, SHM_CLIENT_CHAR, SHM_CLIENT_SIZE);
+
     Client client;
     client.mom_queue =              mom_queue;
-    client.connected =              true;
+    client.connected =              false;
     client.error.info =             "";
     client.error.type =             ERROR_NO_ERROR;
     client.local_id =               client_local_id;
     client.cinema_id =              UNDEFINED_ID;
+    client.listener_updates =       listener_updates;
+    client.listener_updates_mutex = listener_updates_mutex;
+    client.listener_extern_data =   nullptr;
 
 
     //Attemp to connect with mom
     q_message connection_mom_request{};
-    connection_mom_request.message_type = TYPE_CONNECTON_MOM_REQUEST;
+    connection_mom_request.message_type = TYPE_CONNECTION_MOM_REQUEST;
     connection_mom_request.message_choice.m1.client_id = client.local_id;
     send_message(mom_queue, connection_mom_request);
+
+    mom_queue.id = client_local_id;
     q_message connection_mom_response = receive_message(mom_queue);
-    if (connection_mom_response.message_choice_number != CHOICE_CONNECTION_ACCEPTED) {
-        client.error.type = 1;
-        client.error.info = "Cannot initialize mom";
-    } else {
+    if (connection_mom_response.message_choice_number == CHOICE_CONNECTION_ACCEPTED) {
         client.connected = true;
         client.mom_queue.id = client.local_id;
-
+        client.listener_updates_position = connection_mom_response.message_choice.m1.client_id;
+        CLIENTS[client.local_id] = client;
     }
-    CLIENTS[client.local_id] = client;
 
     return client.local_id;
 }
@@ -123,7 +143,7 @@ bool login(int client_fd) {
 
     client->cinema_id = _connect_to_cinema(*client);
 
-    if (client->cinema_id != UNDEFINED_ID) {
+    if (client->cinema_id == UNDEFINED_ID) {
         client->error.type = ERROR_CANNOT_CONNECT_TO_CINEMA;
         client->error.info = "Cannot connect with cinema";
         return false;
@@ -135,7 +155,15 @@ bool login(int client_fd) {
 
 }
 
+
+void _end_listener_thread(Client* client) {
+    if (pthread_cancel(client->listener_thread) == 0) {
+        client->listener_extern_data = nullptr;
+    }
+}
+
 bool _disconnect(Client* client, bool send = true) {
+    _end_listener_thread(client);
     if (send) {
         q_message exit{};
         exit.message_choice_number = CHOICE_EXIT;
@@ -152,11 +180,53 @@ bool _disconnect(Client* client, bool send = true) {
     return true;
 }
 
+void* _listener_thread(void* data) {
+    auto client = (Client*)data;
+    if (client->listener_extern_data == nullptr) {
+        return nullptr;
+    }
+    printf("[CLIENT-INTERFACE-LISTENER] CLIENT %d thread. Begin Poll every %d seconds\n", client->local_id, client->listener_extern_data->polling_interval_sec);
+    bool poll = true;
+    while (poll) {
+        sleep(client->listener_extern_data->polling_interval_sec);
+        //printf("[CLIENT-INTERFACE-LISTENER] Searching for a seat update for CLIENT %d\n", client->local_id);
+
+        semaphore_wait(client->listener_updates_mutex);
+            Seats_update update = static_cast<Seats_update*>(client->listener_updates)[client->listener_updates_position];
+            static_cast<Seats_update*>(client->listener_updates)[client->listener_updates_position].update = NOT_SUCCESS;
+            bool an_update = (update.update == SUCCESS);
+        semaphore_signal(client->listener_updates_mutex);
+        if (an_update) {
+            //printf("[CLIENT-INTERFACE-LISTENER] An update detected for CLIENT %d\n", client->local_id);
+            std::vector<Seat> seats;
+            for (int i = 0; i < update.count; i++) {
+                Seat seat = update.seats[i];
+                seats.push_back(seat);
+            }
+            client->listener_extern_data->on_seat_update(seats,client->listener_extern_data->arguments);
+        }
+        poll = (update.update == SUCCESS || update.update == NOT_SUCCESS);
+    }
+    return nullptr;
+}
+
+void _start_listener_thread(Client* client) {
+    _end_listener_thread(client);
+    if (client == nullptr) {
+        return;
+    }
+    printf("[CLIENT-INTERFACE] Attemp to create listener polling thread\n");
+    if (pthread_create(&client->listener_thread, nullptr, _listener_thread, (void*)client) != 0) {
+        printf("[CLIENT-INTERFACE] Cannot create thread\n");
+        client->error.type = ERROR_GENERAL_ERROR;
+        client->error.info = "Cannot start listener";
+    }
+}
 
 std::vector<Room> get_rooms(int client_fd) {
     Client* client = _getClient(client_fd);
     _clean_error(client);
-
+    _end_listener_thread(client);
     std::vector<Room> rooms;
     if (client == nullptr) {
         return rooms;
@@ -195,15 +265,16 @@ std::vector<Seat> _seat_to_vector(m4_seats raw_seats) {
     for (int i = 0; i < raw_seats.count; i++) {
         Seat aSeat{};
         aSeat.id        = raw_seats.seats_id[i];
-        aSeat.status    = (short)raw_seats.seats_status[i];
+        aSeat.status    = raw_seats.seats_status[i];
         seats.push_back(aSeat);
     }
     return seats;
 }
 
-std::vector<Seat> get_seats(int client_fd,Room aRoom) {
+std::vector<Seat> get_seats(int client_fd,Room aRoom, on_seat_update_data* on_update_data = nullptr) {
     Client* client = _getClient(client_fd);
     _clean_error(client);
+    _end_listener_thread(client);
     std::vector<Seat> seats;
     if (client == nullptr) {
         return seats;
@@ -225,7 +296,7 @@ std::vector<Seat> get_seats(int client_fd,Room aRoom) {
         }
         client->error.type = ERROR_GENERAL_ERROR;
         client->error.info = "Unexpected Error after CHOICE_SEATS_REQUEST";
-        printf("[CLIENT] Unexpected Error after CHOICE_SEATS_REQUEST\n");
+        printf("[CLIENT-INTERFACE] Unexpected Error after CHOICE_SEATS_REQUEST\n");
         return seats;
     } else {
         if (room_information.message_choice.m4.success == NOT_SUCCESS) {
@@ -236,27 +307,14 @@ std::vector<Seat> get_seats(int client_fd,Room aRoom) {
         }
     }
 
+    // TODO: End thread when seat is reserve, request room or end connection
+    if (on_update_data != nullptr) {
+        client->listener_extern_data = on_update_data;
+        _start_listener_thread(client);
+    }
+
     return _seat_to_vector(room_information.message_choice.m4);
 }
-
-/* TODO: Update seat system client-side
-std::vector<Seat> update_seats(int client_fd) {
-    std::vector<Seat> seats;
-    Client* client = _getClient(client_fd);
-    int updates = flag_update_read(*client);
-    if (updates != NO_SEAT_UPDATE) {
-        q_message seats_update = receive_message(client->update_communication);
-        for (int i = 1; i < updates; i++) {
-            seats_update = receive_message(client->update_communication);
-        }
-        flag_update_write(*client, NO_SEAT_UPDATE);
-        if (seats_update.message_choice_number == CHOICE_SEATS_RESPONSE) {
-            return _seat_to_vector(seats_update.message_choice.m4);
-        }
-    }
-    return seats;
-}
-*/
 
 bool reserve_seat(int client_fd, Seat aSeat) {
     Client* client = _getClient(client_fd);
@@ -291,7 +349,7 @@ bool reserve_seat(int client_fd, Seat aSeat) {
         client->error.info = std::string(information);
         return false;
     }
-
+    _end_listener_thread(client);
     //4.1 else show seating information and exit.
     Reservation reservation{};
     reservation.room = aSeat.room_id;
