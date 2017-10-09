@@ -5,4 +5,4 @@ before_script:
 - cmake .
 script:
 - make
-- ./test/commqueuetest
+- ./bin/commqueuetest
