@@ -33,21 +33,28 @@ Por ultimo el cliente realiza la transaccion para abonar las reservas. En ese mo
 #### Server
 ```bash
     # Init DB data and initialize IPC's
-    $ ./src/utils/database_data_init
-    $ ./src/utils/initializer
+    $ ./bin/database_data_init
+    $ ./bin/utils/initializer
     # Wake up cinema server
-    $ ./src/cinema/cinema
+    $ ./bin/cinema
     
     # After cinema close. Destroy IPC's
-    $ ./src/utils/destructor
+    $ ./bin/destructor
 ```
+
+#### Middleware
+```bash
+    $ ./bin/mom
+```
+
 #### Client
-```
-    $ ./src/client/client
+```bash
+    # Requiere middleware inicializado
+    $ ./bin/client
 ```
 
 ## Test
 ```bash
-    $ ./test/commqueue_test
-    $ ./test/db_test/db_test
+    $ ./bin/commqueue_test
+    $ ./bin/db_test
 ```
