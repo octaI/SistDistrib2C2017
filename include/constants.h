@@ -62,8 +62,8 @@ typedef struct {
 #define QUEUE_ACTIVITY_CHAR 'h'
 
 // To store update information in shared memory client-side (seats update)
-#define SHM_CLIENT_FILE "/bin/bash"
-#define SHM_CLIENT_CHAR 'p'
+#define SHM_CLIENT_FILE "/bin/ls"
+#define SHM_CLIENT_CHAR 'c'
 #define SHM_CLIENT_SIZE sizeof(Seats_update)*MAX_CLIENTS_HOST
 
 #define MUTEX_CLIENT_FILE "/bin/bash"
@@ -84,5 +84,11 @@ typedef struct {
 #define QUEUE_MOM_CHAR 'a'
 
 #define DATABASE_FILENAME "main_db.db"
+
+
+/*----------------------------------------------------------------------------*/
+//NETWORK CONSTANTS
+
+#define MAX_BACKLOG_CONN 100
 
 #endif //DISTRIBUIDOS_CONSTANTS_H
