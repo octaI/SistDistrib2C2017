@@ -55,24 +55,24 @@ int close_socket(int sock_fd) {
     return close(sock_fd);
 }
 
-void serialize_chars (char* destination, char* data, int size) {
+void serialize_chars (char*& destination, char* data, int size) {
      for(int i = 0; i < size; i++){
          *destination = data[i];
          destination++;
      }
 }
 
-void serialize_ints (int* destination, int* data, int size) {
+void serialize_ints (int*& destination, int* data, int size) {
     for(int i = 0; i < size; i++){
         *destination = htonl((uint32_t )data[i]);
         destination++;
     }
 }
 
-void serialize_reservation(int* destination, Reservation* data, int count) {
+void serialize_reservation(int*& destination, Reservation* data, int count) {
     /* |room | seat_num | */
     for(int i = 0; i < count; i++) {
-        *destination = htonl((uint32_t )data[i].room);
+        *destination = htonl(data[i].room);
         destination++;
         *destination = htonl(data[i].seat_num);
         destination++;
@@ -82,6 +82,7 @@ void serialize_reservation(int* destination, Reservation* data, int count) {
 void serialize_message(q_message sent_msg, char* data_to_serialize) {
     /* | size | clientid | msgchoicenum | DATA | */
     int s_clientid = htonl(sent_msg.client_id); //convert to network endianness
+    char *data_as_char;
     int *data_as_int = (int*) data_to_serialize;
     *data_as_int = htonl(sizeof(q_message)); //first send msg size
     data_as_int++; //move pointer 4 bytes to next position
@@ -91,6 +92,7 @@ void serialize_message(q_message sent_msg, char* data_to_serialize) {
     data_as_int++; //move pointer 4 bytes
     switch( sent_msg.message_choice_number) {
         case CHOICE_CONNECTION_ACCEPTED: {
+            *data_as_int = htonl(sent_msg.message_choice.m1.client_id);
             break;
         }
         case CHOICE_ROOMS_REQUEST: {
@@ -111,13 +113,14 @@ void serialize_message(q_message sent_msg, char* data_to_serialize) {
 
         case CHOICE_SEATS_RESPONSE: {
             /* |success | count | {seat_ids} | {seat_status} | {information} |    */
-            *data_as_int = htons(sent_msg.message_choice.m4.success);
+            *data_as_int = htonl(sent_msg.message_choice.m4.success);
             data_as_int++;
             *data_as_int = htonl(sent_msg.message_choice.m4.count);
             data_as_int++;
             serialize_ints(data_as_int,sent_msg.message_choice.m4.seats_id,sent_msg.message_choice.m4.count);
-            serialize_chars((char*)data_as_int,sent_msg.message_choice.m4.seats_status,sent_msg.message_choice.m4.count);
-            serialize_chars((char*)data_as_int,sent_msg.message_choice.m4.information,MAX_LENGTH_STRING);
+            data_as_char = (char*) data_as_int;
+            serialize_chars(data_as_char,sent_msg.message_choice.m4.seats_status,sent_msg.message_choice.m4.count);
+            serialize_chars(data_as_char,sent_msg.message_choice.m4.information,MAX_LENGTH_STRING);
             break;
         }
         case CHOICE_SEAT_SELECT_REQUEST: {
@@ -129,12 +132,13 @@ void serialize_message(q_message sent_msg, char* data_to_serialize) {
             /* |success | information | */
             *data_as_int = sent_msg.message_choice.m6.success;
             data_as_int++;
-            serialize_chars((char*) data_as_int,sent_msg.message_choice.m6.information,MAX_LENGTH_STRING);
+            data_as_char = (char*) data_as_int;
+            serialize_chars(data_as_char,sent_msg.message_choice.m6.information,MAX_LENGTH_STRING);
             break;
         }
 
         case CHOICE_PAY_RESERVATION_REQUEST: {
-            *data_as_int = sent_msg.message_choice.m7.count;
+            *data_as_int = htonl(sent_msg.message_choice.m7.count);
             data_as_int++;
             serialize_reservation(data_as_int,sent_msg.message_choice.m7.list,sent_msg.message_choice.m7.count);
             break;
@@ -144,23 +148,23 @@ void serialize_message(q_message sent_msg, char* data_to_serialize) {
     }
 }
 
-void deserialize_ints(int *data, int* destination, int count) {
+void deserialize_ints(int *&data, int* destination, int count) {
     for (int i = 0; i < count; i++) {
         destination[i] = ntohl(*data);
         data++;
     }
 }
 
-void deserialize_chars(char *data, char* destination, int count) {
+void deserialize_chars(char *&data, char* destination, int count) {
     for (int i = 0; i < count; i++){
         destination[i] = *data;
         data++;
     }
 }
 
-void deserialize_reservations(int* data, q_message &rec_msg, int count) {
+void deserialize_reservations(int* &data, q_message &rec_msg, int count) {
     /* |room | seat_num | */
-    for (int i = 0; i++ ; i < count) {
+    for (int i = 0;i < count; i++ ) {
         Reservation new_reservation;
         new_reservation.room = ntohl(*data);
         data++;
@@ -172,6 +176,7 @@ void deserialize_reservations(int* data, q_message &rec_msg, int count) {
 
 void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
     int* data_as_int = (int*) data_to_deserialize;
+    char* data_as_char;
     int size = ntohl(*data_as_int);
     data_as_int++;
     rec_msg.client_id = ntohl(*data_as_int);
@@ -180,10 +185,14 @@ void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
     data_as_int++;
 
     switch (rec_msg.message_choice_number) {
-        case CHOICE_CONNECTION_ACCEPTED : case CHOICE_ROOMS_REQUEST : {
+        case CHOICE_CONNECTION_ACCEPTED :  {
+            rec_msg.message_choice.m1.client_id = ntohl(*data_as_int);
             break;
         }
 
+        case CHOICE_ROOMS_REQUEST : {
+            break;
+        }
         case CHOICE_ROOMS_RESPONSE : {
             rec_msg.message_choice.m2.count = ntohl(*data_as_int);
             data_as_int++;
@@ -203,8 +212,9 @@ void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
             rec_msg.message_choice.m4.count = ntohl(*data_as_int);
             data_as_int++;
             deserialize_ints(data_as_int,rec_msg.message_choice.m4.seats_id,rec_msg.message_choice.m4.count);
-            data_as_int++;
-            deserialize_chars((char*)data_as_int,rec_msg.message_choice.m4.seats_status,rec_msg.message_choice.m4.count);
+            data_as_char = (char*) data_as_int;
+            deserialize_chars(data_as_char,rec_msg.message_choice.m4.seats_status,rec_msg.message_choice.m4.count);
+            deserialize_chars(data_as_char,rec_msg.message_choice.m4.information,MAX_LENGTH_STRING);
             break;
         }
 
@@ -217,11 +227,12 @@ void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
             /* |success | information | */
             rec_msg.message_choice.m6.success = ntohl(*data_as_int);
             data_as_int++;
-            deserialize_chars((char*)data_as_int,rec_msg.message_choice.m6.information,MAX_LENGTH_STRING);
+            data_as_char = (char*) data_as_int;
+            deserialize_chars(data_as_char,rec_msg.message_choice.m6.information,MAX_LENGTH_STRING);
             break;
         }
         case CHOICE_PAY_RESERVATION_REQUEST: {
-            rec_msg.message_choice.m7.count = *data_as_int;
+            rec_msg.message_choice.m7.count = ntohl(*data_as_int);
             data_as_int++;
             deserialize_reservations(data_as_int,rec_msg,rec_msg.message_choice.m7.count);
             break;

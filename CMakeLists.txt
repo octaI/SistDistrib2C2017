@@ -29,4 +29,5 @@ add_subdirectory("src/middleware")
 #add_subdirectory("src/admin")
 add_subdirectory("test")
 add_subdirectory("test/db_test")
+add_subdirectory("test/socket_test")
 
