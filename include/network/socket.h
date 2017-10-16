@@ -10,6 +10,7 @@
 #include <cstring>
 #include <string>
 #include <constants.h>
+#include <messages/message.h>
 
 
 int create_sock_fd();
@@ -24,7 +25,11 @@ int listen_socket(int sock_fd);
 
 int close_socket(int sock_fd);
 
+int send_packet(int sock_fd, q_message sent_msg);
 
+void serialize_message(q_message sent_msg, char* data_to_serialize);
+
+void deserialize_message(q_message &rec_msg, char* data_to_deserialize);
 
 
 #endif //DISTRIBUIDOS_SOCKET_H

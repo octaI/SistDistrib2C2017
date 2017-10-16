@@ -87,6 +87,10 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------*/
+/* SOCKET COMMUNICATION PROTOCOL DEFINITION :
+ * | msg size (int) | client id (int) | msg choice num (int) | specific data (...) |
+ * */
+
 //NETWORK CONSTANTS
 
 #define MAX_BACKLOG_CONN 100
