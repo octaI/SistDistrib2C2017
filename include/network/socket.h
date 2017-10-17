@@ -17,7 +17,7 @@ int create_sock_fd();
 
 int connect_socket(int sock_fd,std::string ip_addr,unsigned short port);
 
-int bind_socket(int sock_fd, std::string ip_addr, unsigned short port, int size);
+int bind_socket(int sock_fd, std::string ip_addr, unsigned short port);
 
 int accept_connection(int sock_fd, sockaddr_in &client_info);
 
@@ -25,7 +25,9 @@ int listen_socket(int sock_fd);
 
 int close_socket(int sock_fd);
 
-int send_packet(int sock_fd, q_message sent_msg);
+int send_packet(int sock_fd, q_message msg_to_send);
+
+int receive_packet (int sock_fd, q_message &received_msg);
 
 void serialize_message(q_message sent_msg, char* data_to_serialize);
 

@@ -93,6 +93,6 @@ typedef struct {
 
 //NETWORK CONSTANTS
 
-#define MAX_BACKLOG_CONN 100
+#define MAX_BACKLOG_CONN 20
 
 #endif //DISTRIBUIDOS_CONSTANTS_H

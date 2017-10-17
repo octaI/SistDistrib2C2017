@@ -1,13 +1,15 @@
 #include <network/socket.h>
 #include <messages/message.h>
 #include <constants.h>
-
+#include <iostream>
 
 
 int create_sock_fd() {
     int ret_sockfd;
     ret_sockfd = socket(AF_INET,SOCK_STREAM,0);
-
+    if (ret_sockfd < 0) {
+        THROW_UTIL("[SOCKET] Error when creating socket");
+    }
     return ret_sockfd;
 }
 
@@ -17,21 +19,25 @@ int connect_socket(int sock_fd,std::string ip_addr,unsigned short port) {
     conn_info.sin_family = AF_INET;
     conn_info.sin_port = htons(port);
     memset(conn_info.sin_zero,0,sizeof(conn_info.sin_zero));
-
-    return connect(sock_fd,(struct sockaddr*) &conn_info, sizeof(conn_info));
+    int connect_res = connect(sock_fd,(struct sockaddr*) &conn_info, sizeof(conn_info));
+    if (connect_res < 0) THROW_UTIL("[SOCKET] Error when connecting to" + ip_addr + ":" + std::to_string(port));
+    return connect_res;
 }
 
-int bind_socket(int sock_fd, std::string ip_addr, unsigned short port, int size) {
+int bind_socket(int sock_fd, std::string ip_addr, unsigned short port) {
     sockaddr_in server_info;
     inet_pton(AF_INET,ip_addr.c_str(),&server_info.sin_addr.s_addr);
     server_info.sin_port = htons(port);
     server_info.sin_family = AF_INET;
-
-    return bind(sock_fd,(struct sockaddr*) &server_info, sizeof(server_info));
+    int bind_res = bind(sock_fd,(struct sockaddr*) &server_info, sizeof(server_info));
+    if (bind_res < 0) THROW_UTIL("[SOCKET] Error when binding" + ip_addr + ":" +  std::to_string(port));
+    return  bind_res;
 }
 
 int listen_socket(int sock_fd) {
-    return listen(sock_fd,MAX_BACKLOG_CONN);
+    int res_listen = listen(sock_fd,MAX_BACKLOG_CONN);
+    if (res_listen < 0) THROW_UTIL("[SOCKET] Error when setting socket to listen");
+    return res_listen;
 }
 
 
@@ -40,10 +46,10 @@ int accept_connection(int sock_fd, sockaddr_in &client_info) {
     socklen_t len = sizeof(val);
     int res =getsockopt(sock_fd,SOL_SOCKET,SO_ACCEPTCONN,&val,&len);
     if ( res == -1) {
-        printf("Provided socket descriptor is not a socket. \n");
+        THROW_UTIL("Provided socket descriptor is not a socket. \n");
         return -1;
     } else if (!val) {
-        printf("Provided socket is not in listening state. \n");
+        THROW_UTIL("Provided socket is not in listening state. \n");
         return -1;
     }
 
@@ -52,7 +58,9 @@ int accept_connection(int sock_fd, sockaddr_in &client_info) {
 }
 
 int close_socket(int sock_fd) {
-    return close(sock_fd);
+    int res = close(sock_fd);
+    if (res < 0) THROW_UTIL("[SOCKET] Error when closing socket");
+    return res;
 }
 
 void serialize_chars (char*& destination, char* data, int size) {
@@ -240,3 +248,39 @@ void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
     }
 }
 
+int send_packet(int sock_fd, q_message msg_to_send) {
+    int msg_size = sizeof(q_message) + sizeof(int)*2;
+    char* data_buffer = (char*) malloc(msg_size);
+    serialize_message(msg_to_send,data_buffer);
+    int sent_bytes = 0;
+    while(sent_bytes < msg_size) {
+        int temp = send(sock_fd,data_buffer,msg_size - sent_bytes,0);
+        if (temp < 0) {
+            THROW_UTIL("[SOCKET] Error when sending message to destination");
+            return -1;
+        }
+        sent_bytes+=temp;
+        data_buffer+=temp;
+    }
+    free(data_buffer);
+    return 1;
+}
+
+int receive_packet (int sock_fd, q_message &received_msg){
+    int msg_size = sizeof(q_message) + sizeof(int)*2;
+    char* data_buffer = (char*) malloc(msg_size);
+    int rec_bytes = 0;
+    while (rec_bytes < msg_size) {
+        int temp = recv(sock_fd,data_buffer,msg_size-rec_bytes,0);
+        if (temp < 0){
+            THROW_UTIL("[SOCKET] Error when receiving message");
+            return -1;
+        }
+
+        rec_bytes+=temp;
+        data_buffer+=temp;
+    }
+    deserialize_message(received_msg,data_buffer);
+    free(data_buffer);
+    return 1;
+}
