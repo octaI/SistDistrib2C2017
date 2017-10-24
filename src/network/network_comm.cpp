@@ -10,7 +10,6 @@ void network_newconn(network_comm &net_com, std::string ip_addr, unsigned short 
 void network_prepare_accept(network_comm net_com) {
     bind_socket(net_com.sock_fd,net_com.ip_addr,net_com.port);
     listen_socket(net_com.sock_fd);
-    return;
 }
 
 network_comm network_accept_connection(network_comm net_com) {

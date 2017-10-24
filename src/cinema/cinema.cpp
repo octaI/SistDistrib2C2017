@@ -176,13 +176,16 @@ void network_listen(Cinema cinema) {
             network_comm accept_fd = network_accept_connection(cinema.cinema_net_info);
             if(fork() == 0) {
                 while (true) {
-                    cinema.client_comm.orientation = COMMQUEUE_AS_CLIENT;
+                    cinema.client_comm.orientation = COMMQUEUE_AS_SERVER;
                     q_message msg_to_receive,msg_to_send;
                     receive_packet(accept_fd.sock_fd,msg_to_receive);
+                    printf("RECIBI\n");
                     send_message(cinema.client_comm,msg_to_receive);
-                    cinema.client_comm.orientation = COMMQUEUE_AS_SERVER;
+                    printf("INJECTE EN LA COLA\n");
                     msg_to_send = receive_message(cinema.client_comm,0);
+                    printf("DESENCOLO\n");
                     send_packet(accept_fd.sock_fd,msg_to_send);
+                    printf("RESPONDO\n");
                     if(msg_to_receive.message_choice_number == CHOICE_EXIT) break;
                 }
                 exit(0);
