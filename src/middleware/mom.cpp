@@ -27,7 +27,7 @@ typedef struct {
     int client_cinema_id{};
 
 
-    network_comm net_info,conn_info;
+    network_comm net_info,upd_info;
 } Mom;
 
 
@@ -196,21 +196,14 @@ void fork_client(Mom mom, int client_local_id) {
     mom.client_local_id = client_local_id;
     mom.client_queue.id = mom.client_local_id;
     mom.update_flag_position = client_local_id % MAX_CLIENTS_HOST;
-    printf("[MOM] Connected and waiting request from client %d in PID: %d\n", client_local_id, (int)getpid());
     bool exit_listener = false;
     while (!exit_listener) {
-        printf("Waiting clieng msg\n");
         q_message client_request = receive_message(mom.client_queue);
-        printf(">>>>>>Mom cinema queue id : %d | message type : %d \n",mom.cinema_queue.id,client_request.message_type);
         send_message(mom.cinema_queue, client_request);
-        printf("[MOM] Sent Request \n");
         q_message cinema_response = (mom.client_cinema_id != UNDEFINED_CINEMA_CLIENT_ID) ?
                     receive_message(mom.cinema_queue) : receive_message(mom.cinema_queue, client_local_id);
-        printf("[MOM] Received response Request from Cinema \n");
         send_message(mom.client_queue, cinema_response);
-        printf("[MOM] Sent response Request from Cinema to client \n");
         process_message(&mom, cinema_response, &exit_listener);
-        printf("[MOM] Processed Msg \n");
 
     }
     printf("[MOM] End connection with client %d in PID: %d\n", client_local_id, (int)getpid());
@@ -220,36 +213,44 @@ void fork_client(Mom mom, int client_local_id) {
 void start_network(Mom &mom) {
     /*Connect to the cinema socket*/
     network_newconn(mom.net_info,CINEMA_IP_ADDR,CINEMA_PORT);
+    network_newconn(mom.upd_info,CINEMA_IP_ADDR,UPDATE_PORT);
     network_connect(mom.net_info); //this is the fd for writing and reading from the connection socket
+    network_connect(mom.upd_info);//tgus us tge fd for reading updates from admin
 }
 
 void end_network(Mom mom) {
     network_delete(mom.net_info);
-    network_delete(mom.conn_info);
+    network_delete(mom.upd_info);
 }
 
 void network_listen(Mom mom)  {
     pid_t pid = fork();
     if (pid == 0) {
         while (true) {
-            printf("WAITING MSG \n");
             mom.cinema_queue.orientation = COMMQUEUE_AS_SERVER;
             mom.client_queue.id = -1;
             q_message msg_to_serialize =receive_message(mom.cinema_queue,0);
-            printf("[MOM-NETWORK] RECEIVED MESSAGE %d \n",mom.net_info.sock_fd);
             send_packet(mom.net_info.sock_fd,msg_to_serialize);
-            printf("[MOM-NETWORK] SENT PACKET \n");
             q_message msg_to_deserialize;
             receive_packet(mom.net_info.sock_fd,msg_to_deserialize);
-            printf("[MOM-NETWORK] RECEIVED RESPONSE FROM CINEMA WITH mtype %d \n",msg_to_deserialize.message_choice_number);
             send_message(mom.cinema_queue,msg_to_deserialize);
-            if(msg_to_serialize.message_choice_number == CHOICE_EXIT){
-                break;
-            }
+
         }
 
-        exit(0);
     }
+
+    if (fork() == 0) {
+        while (true) {
+            mom.listener_queue.orientation = COMMQUEUE_AS_SERVER;
+            mom.listener_queue.id = -1;
+            q_message update_msg;
+            receive_packet(mom.upd_info.sock_fd,update_msg);
+            send_message(mom.listener_queue,update_msg);
+        }
+
+    }
+
+
 }
 
 int main() {
