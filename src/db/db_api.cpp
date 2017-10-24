@@ -70,7 +70,7 @@ void db_initialize(sqlite3 *&database) {
         fprintf(stderr,"Error : %s",q_errmsg);
         sqlite3_free(q_errmsg);
     } else {
-        fprintf(stdout, "[CINEMA-DB]Database succesfully initalized \n");
+        fprintf(stdout, "[CINEMA-DB] Database succesfully initalized \n");
     }
 }
 

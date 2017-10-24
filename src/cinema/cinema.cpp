@@ -44,6 +44,7 @@ int cinema_take_client(Cinema cinema) {
     printf("[CINEMA] Waiting connection request\n");
     q_message message = receive_message(cinema.client_comm,TYPE_CONNECTION_CINEMA_REQUEST);
     int client_id = message.message_choice.m1.client_id;
+    printf("[CINEMA] Receive CONNECTION_REQUEST from %d\n", client_id);
     cinema.client_comm.id = client_id;
 
     q_message register_client{};
@@ -170,26 +171,23 @@ void cinema_listen_client(Cinema cinema) {
 }
 
 void network_listen(Cinema cinema) {
-    printf("LLEGO ACA \n");
     if (fork() == 0) {
+        printf("[CINEMA-NETWORK] Listen connections in %s:%d\n",CINEMA_IP_ADDR,CINEMA_PORT);
+        network_comm accept_fd = network_accept_connection(cinema.cinema_net_info);
+        cinema.client_comm.orientation = COMMQUEUE_AS_CLIENT;
+        cinema.client_comm.id = -1;
         while (true) {
-            network_comm accept_fd = network_accept_connection(cinema.cinema_net_info);
-            if(fork() == 0) {
-                while (true) {
-                    cinema.client_comm.orientation = COMMQUEUE_AS_SERVER;
-                    q_message msg_to_receive,msg_to_send;
-                    receive_packet(accept_fd.sock_fd,msg_to_receive);
-                    printf("RECIBI\n");
-                    send_message(cinema.client_comm,msg_to_receive);
-                    printf("INJECTE EN LA COLA\n");
-                    msg_to_send = receive_message(cinema.client_comm,0);
-                    printf("DESENCOLO\n");
-                    send_packet(accept_fd.sock_fd,msg_to_send);
-                    printf("RESPONDO\n");
-                    if(msg_to_receive.message_choice_number == CHOICE_EXIT) break;
-                }
-                exit(0);
-            }
+            q_message msg_to_receive{},msg_to_send{};
+
+            receive_packet(accept_fd.sock_fd,msg_to_receive);
+
+            send_message(cinema.client_comm,msg_to_receive);
+
+            int type = (msg_to_receive.message_type == TYPE_CONNECTION_CINEMA_REQUEST) ? msg_to_receive.message_choice.m1.client_id : msg_to_receive.message_type;
+            msg_to_send = receive_message(cinema.client_comm, type);
+
+            send_packet(accept_fd.sock_fd,msg_to_send);
+
         }
     }
 }
