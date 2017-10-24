@@ -18,7 +18,7 @@ void network_prepare_accept(network_comm net_com);
 
 network_comm network_accept_connection(network_comm net_com);
 
-void network_connect(network_comm net_com);
+network_comm network_connect(network_comm net_com);
 
 void network_delete(network_comm net_com);
 

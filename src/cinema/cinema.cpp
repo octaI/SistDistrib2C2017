@@ -21,7 +21,7 @@
 
 typedef struct {
     commqueue client_comm, admin_comm;
-    network_comm cinema_info;
+    network_comm cinema_net_info;
 
     int client_id;
 
@@ -129,7 +129,7 @@ void cinema_listen_client(Cinema cinema) {
     cinema.client_comm.id = cinema.client_id;
 
     printf("[CINEMA] [LISTENING TO CLIENT %d] \n",cinema.client_id);
-    
+
     int mutex_shared_memory = semaphore_get(MUTEX_CINEMA_FILE, MUTEX_CINEMA_CHAR);
 
     int timer_pid = -1;
@@ -169,6 +169,25 @@ void cinema_listen_client(Cinema cinema) {
     printf("[CINEMA] Finish client_communication with CLIENT %d\n", cinema.client_id);
 }
 
+void network_listen(Cinema cinema) {
+    if (fork() == 0) {
+        while (true) {
+            network_comm accept_fd = network_accept_connection(cinema.cinema_net_info);
+            if(fork() == 0) {
+                while (true) {
+                    q_message msg_to_receive,msg_to_send;
+                    receive_packet(accept_fd.sock_fd,msg_to_receive);
+                    if(msg_to_receive.message_choice_number == CHOICE_EXIT) break;
+                    send_message(cinema.client_comm,msg_to_receive);
+                    msg_to_send = receive_message(cinema.admin_comm,-1);
+                    send_packet(accept_fd.sock_fd,msg_to_send);
+                }
+                exit(0);
+            }
+        }
+    }
+}
+
 void cinema_start() {
     Cinema cinema;
     /* Create comunication with client */
@@ -180,7 +199,11 @@ void cinema_start() {
     cinema.admin_comm.orientation = COMMQUEUE_AS_CLIENT;
     cinema.admin_comm.id = ADMIN_REQUEST;
 
+    /*Setup network component*/
+    network_newconn(cinema.cinema_net_info,CINEMA_IP_ADDR,CINEMA_PORT);
+    network_prepare_accept(cinema.cinema_net_info);
 
+    network_listen(cinema);
     printf("======= CINEMA ======\n");
     while (1) {
         int client_id = cinema_take_client(cinema);
@@ -198,6 +221,8 @@ void admin_start() {
         exit(0);
     }
 }
+
+
 
 int main(int argc, char **argv) {
     admin_start();

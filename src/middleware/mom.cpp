@@ -25,7 +25,9 @@ typedef struct {
 
     int client_local_id{};
     int client_cinema_id{};
-    network_comm net_info;
+
+
+    network_comm net_info,conn_info;
 } Mom;
 
 
@@ -213,8 +215,38 @@ void fork_client(Mom mom, int client_local_id) {
     exit(0);
 }
 
+void start_network(Mom &mom) {
+    /*Connect to the cinema socket*/
+    network_newconn(mom.net_info,CINEMA_IP_ADDR,CINEMA_PORT);
+     mom.conn_info = network_connect(mom.net_info); //this is the fd for writing and reading from the connection socket
+}
+
+void end_network(Mom mom) {
+    network_delete(mom.net_info);
+    network_delete(mom.conn_info);
+}
+
+void network_listen(Mom mom)  {
+    pid_t pid = fork();
+    if (pid == 0) {
+        while (true) {
+            q_message msg_to_serialize =receive_message(mom.cinema_queue,-1);
+            send_packet(mom.conn_info.sock_fd,msg_to_serialize);
+            q_message msg_to_deserialize;
+            receive_packet(mom.conn_info.sock_fd,msg_to_deserialize);
+            send_message(mom.client_queue,msg_to_deserialize);
+            if(msg_to_serialize.message_choice_number == CHOICE_EXIT) break;
+        }
+
+        exit(0);
+    }
+}
+
 int main() {
     Mom mom = start_mom();
+    start_network(mom);
+
+    network_listen(mom);
     while (true) {
         printf("[MOM-SERVICE] Waiting for init_mom()\n");
         int client_local_id = connect_client(mom);
