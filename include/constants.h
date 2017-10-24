@@ -97,6 +97,6 @@ typedef struct {
 
 #define CINEMA_IP_ADDR "192.168.1.102"
 #define CINEMA_PORT 8080
-#define UPDATE_PORT 8090
+#define ADMIN_PORT 8090
 
 #endif //DISTRIBUIDOS_CONSTANTS_H

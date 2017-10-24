@@ -3,6 +3,7 @@
 #include <cstring>
 #include <messages/message.h>
 #include <ipc/communicationqueue.h>
+#include <network/network_comm.h>
 #include "../../include/ipc/communicationqueue.h"
 #include "../../include/db/db_api.h"
 #include "../../include/constants.h"
@@ -165,6 +166,28 @@ void clean_db_tables(sqlite3* handle) {
     db_remove_users_in_room(handle);
 }
 
+void init_update_network() {
+    if (fork() == 0) {
+        network_comm net_info;
+        network_newconn(net_info,CINEMA_IP_ADDR,ADMIN_PORT);
+        network_prepare_accept(net_info);
+
+        printf("[ADMIN-NETWORK] Listen connections in %s:%d\n",CINEMA_IP_ADDR,ADMIN_PORT);
+        network_comm accept_fd = network_accept_connection(net_info);
+
+        commqueue client_channel = create_commqueue(QUEUE_ACTIVITY_FILE,QUEUE_ACTIVITY_CHAR);
+        client_channel.orientation = COMMQUEUE_AS_CLIENT;
+        client_channel.id = -1;
+        while (true) {
+            printf("[ADMIN-NETWORK] Waiting for updates in queue\n");
+            q_message msg_to_sent = receive_message(client_channel,0);
+            printf("[ADMIN-NETWORK] Update will be sent\n");
+            send_packet(accept_fd.sock_fd,msg_to_sent);
+        }
+        exit(0);
+    }
+}
+
 void admin_daemon(){
     sqlite3* handle;
     db_create(handle,DATABASE_FILENAME);
@@ -173,6 +196,8 @@ void admin_daemon(){
     
     commqueue admin_channel = create_commqueue(QUEUE_CINEMA_ADMIN_FILE,QUEUE_CINEMA_ADMIN_CHAR);
     admin_channel.orientation = COMMQUEUE_AS_SERVER;
+
+    init_update_network();
 
     while(true){
         admin_listen_requests(handle,admin_channel);

@@ -34,9 +34,8 @@ int bind_socket(int sock_fd, std::string ip_addr, unsigned short port) {
     server_info.sin_family = AF_INET;
     int bind_res = bind(sock_fd,(struct sockaddr*) &server_info, sizeof(server_info));
     if (bind_res < 0){
-        THROW_UTIL("[SOCKET] Error when binding" + ip_addr + ":" +  std::to_string(port));
+        THROW_UTIL("[SOCKET] Error when binding " + ip_addr + ":" +  std::to_string(port));
     }
-    printf("PASO EL BIND RES %d \n",bind_res);
     return  bind_res;
 }
 
@@ -272,7 +271,7 @@ int send_packet(int sock_fd, q_message msg_to_send) {
     serialize_message(msg_to_send,data_buffer);
     size_t sent_bytes = 0;
     while(sent_bytes < msg_size) {
-        printf("[SOCKET] Sending msg \n ");
+        printf("[SOCKET] Sending msg \n");
         ssize_t temp = send(sock_fd,data_buffer,msg_size - sent_bytes,0);
         printf("[SOCKET] %ld bytes sent \n",temp);
         if (temp < 0) {
@@ -290,6 +289,7 @@ int send_packet(int sock_fd, q_message msg_to_send) {
 int receive_packet (int sock_fd, q_message &received_msg){
     int msg_size = sizeof(q_message) + sizeof(int)*2;
     char* data_buffer = (char*) malloc(msg_size);
+
     char* initial_pos = data_buffer;
     int rec_bytes = 0;
     while (rec_bytes < msg_size) {
@@ -303,7 +303,9 @@ int receive_packet (int sock_fd, q_message &received_msg){
         data_buffer+=temp;
     }
     data_buffer = initial_pos;
+
     deserialize_message(received_msg,data_buffer);
+
     free(data_buffer);
     return 1;
 }
