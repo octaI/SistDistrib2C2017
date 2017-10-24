@@ -98,11 +98,11 @@ void serialize_reservation(int*& destination, Reservation* data, int count) {
 }
 
 void serialize_message(q_message sent_msg, char* data_to_serialize) {
-    /* | size | clientid | msgchoicenum | DATA | */
+    /* | type | clientid | msgchoicenum | DATA | */
     int s_clientid = htonl(sent_msg.client_id); //convert to network endianness
     char *data_as_char;
     int *data_as_int = (int*) data_to_serialize;
-    *data_as_int = htonl(sizeof(q_message)); //first send msg size
+    *data_as_int = htonl(sent_msg.message_type); //first send msg type
     data_as_int++; //move pointer 4 bytes to next position
     *data_as_int = s_clientid; //write client id
     data_as_int++; //move pointer 4bytes
@@ -195,7 +195,7 @@ void deserialize_reservations(int* &data, q_message &rec_msg, int count) {
 void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
     int* data_as_int = (int*) data_to_deserialize;
     char* data_as_char;
-    int size = ntohl(*data_as_int);
+    rec_msg.message_type = ntohl(*data_as_int);
     data_as_int++;
     rec_msg.client_id = ntohl(*data_as_int);
     data_as_int++;

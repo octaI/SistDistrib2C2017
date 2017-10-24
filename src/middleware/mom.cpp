@@ -232,6 +232,7 @@ void network_listen(Mom mom)  {
         while (true) {
             printf("WAITING MSG \n");
             mom.cinema_queue.orientation = COMMQUEUE_AS_SERVER;
+            mom.client_queue.id = -1;
             q_message msg_to_serialize =receive_message(mom.cinema_queue,0);
             printf("RECEIVED MESSAGE %d \n",mom.net_info.sock_fd);
             send_packet(mom.net_info.sock_fd,msg_to_serialize);

@@ -7,6 +7,7 @@
 #include <ipc/sharedmemory.h>
 #include <pthread.h>
 #include <constants.h>
+#include <messages/message.h>
 
 
 #define ERROR_NO_ERROR 0
@@ -74,6 +75,8 @@ int _connect_to_cinema(Client client) {
 
     q_message request_connect_to_cinema{};
     request_connect_to_cinema.message_type = TYPE_CONNECTION_CINEMA_REQUEST;
+    request_connect_to_cinema.client_id = 777;
+    request_connect_to_cinema.message_choice_number = TYPE_CONNECTION_CINEMA_REQUEST;
     request_connect_to_cinema.message_choice.m1.client_id = client_token;
 
     send_message(client.mom_queue,request_connect_to_cinema);

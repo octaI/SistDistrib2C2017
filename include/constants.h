@@ -96,6 +96,6 @@ typedef struct {
 #define MAX_BACKLOG_CONN 20
 
 #define CINEMA_IP_ADDR "192.168.1.102"
-#define CINEMA_PORT 8082
+#define CINEMA_PORT 8081
 
 #endif //DISTRIBUIDOS_CONSTANTS_H
