@@ -213,7 +213,7 @@ void fork_client(Mom mom, int client_local_id) {
 void start_network(Mom &mom) {
     /*Connect to the cinema socket*/
     network_newconn(mom.net_info,CINEMA_IP_ADDR,CINEMA_PORT);
-    network_newconn(mom.upd_info,CINEMA_IP_ADDR,UPDATE_PORT);
+    network_newconn(mom.upd_info,CINEMA_IP_ADDR,ADMIN_PORT);
     network_connect(mom.net_info); //this is the fd for writing and reading from the connection socket
     network_connect(mom.upd_info);//tgus us tge fd for reading updates from admin
 }
