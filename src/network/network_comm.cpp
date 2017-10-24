@@ -25,12 +25,9 @@ network_comm network_accept_connection(network_comm net_com) {
     return client_data;
 }
 
-network_comm network_connect(network_comm net_com) {
-    network_comm connect;
-    connect.sock_fd =connect_socket(net_com.sock_fd,net_com.ip_addr,net_com.port);
-    connect.ip_addr = net_com.ip_addr;
-    connect.port = net_com.port;
-    return connect;
+void network_connect(network_comm net_com) {
+    connect_socket(net_com.sock_fd,net_com.ip_addr,net_com.port);
+    return ;
 }
 
 void network_delete(network_comm net_com) {

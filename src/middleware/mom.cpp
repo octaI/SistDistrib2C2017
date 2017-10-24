@@ -218,7 +218,7 @@ void fork_client(Mom mom, int client_local_id) {
 void start_network(Mom &mom) {
     /*Connect to the cinema socket*/
     network_newconn(mom.net_info,"192.168.1.102",8080);
-     mom.conn_info = network_connect(mom.net_info); //this is the fd for writing and reading from the connection socket
+    network_connect(mom.net_info); //this is the fd for writing and reading from the connection socket
 }
 
 void end_network(Mom mom) {
@@ -233,11 +233,11 @@ void network_listen(Mom mom)  {
             printf("WAITING MSG \n");
             mom.cinema_queue.orientation = COMMQUEUE_AS_SERVER;
             q_message msg_to_serialize =receive_message(mom.cinema_queue,0);
-            printf("RECEIVED MESSAGE \n");
-            send_packet(mom.conn_info.sock_fd,msg_to_serialize);
+            printf("RECEIVED MESSAGE %d \n",mom.net_info.sock_fd);
+            send_packet(mom.net_info.sock_fd,msg_to_serialize);
             printf("SENT PACKET \n");
             q_message msg_to_deserialize;
-            receive_packet(mom.conn_info.sock_fd,msg_to_deserialize);
+            receive_packet(mom.net_info.sock_fd,msg_to_deserialize);
             send_message(mom.client_queue,msg_to_deserialize);
             if(msg_to_serialize.message_choice_number == CHOICE_EXIT) break;
         }

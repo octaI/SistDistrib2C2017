@@ -259,12 +259,14 @@ void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
 }
 
 int send_packet(int sock_fd, q_message msg_to_send) {
-    int msg_size = sizeof(q_message) + sizeof(int)*2;
+    size_t msg_size = sizeof(q_message) + sizeof(int)*2;
     char* data_buffer = (char*) malloc(msg_size);
     serialize_message(msg_to_send,data_buffer);
-    int sent_bytes = 0;
+    size_t sent_bytes = 0;
     while(sent_bytes < msg_size) {
+        printf("[SOCKET] Sending msg \n ");
         ssize_t temp = send(sock_fd,data_buffer,msg_size - sent_bytes,0);
+        printf("[SOCKET] %ld bytes sent \n",temp);
         if (temp < 0) {
             THROW_UTIL("[SOCKET] Error when sending message to destination");
             return -1;
@@ -272,6 +274,7 @@ int send_packet(int sock_fd, q_message msg_to_send) {
         sent_bytes+=temp;
         data_buffer+=temp;
     }
+    data_buffer-=msg_size;
     free(data_buffer);
     return 1;
 }
@@ -291,6 +294,7 @@ int receive_packet (int sock_fd, q_message &received_msg){
         data_buffer+=temp;
     }
     deserialize_message(received_msg,data_buffer);
+    data_buffer-=msg_size;
     free(data_buffer);
     return 1;
 }
