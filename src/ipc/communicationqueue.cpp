@@ -19,6 +19,7 @@ commqueue create_commqueue(std::string filename, char key_char) {
 void send_message(commqueue channel, q_message input) {
     int queue_id = (channel.orientation == 0) ? channel.id_firstqueue : channel.id_secondqueue;
     int type = (channel.id != UNDEFINED_ID) ? channel.id : input.message_type;
+    input.message_type = type;
     queue_send(queue_id,(void*) &input,sizeof(input), type);
 }
 

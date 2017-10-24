@@ -217,7 +217,7 @@ void fork_client(Mom mom, int client_local_id) {
 
 void start_network(Mom &mom) {
     /*Connect to the cinema socket*/
-    network_newconn(mom.net_info,CINEMA_IP_ADDR,CINEMA_PORT);
+    network_newconn(mom.net_info,"192.168.1.102",8080);
      mom.conn_info = network_connect(mom.net_info); //this is the fd for writing and reading from the connection socket
 }
 
@@ -230,7 +230,7 @@ void network_listen(Mom mom)  {
     pid_t pid = fork();
     if (pid == 0) {
         while (true) {
-            q_message msg_to_serialize =receive_message(mom.cinema_queue,-1);
+            q_message msg_to_serialize =receive_message(mom.cinema_queue,0);
             send_packet(mom.conn_info.sock_fd,msg_to_serialize);
             q_message msg_to_deserialize;
             receive_packet(mom.conn_info.sock_fd,msg_to_deserialize);

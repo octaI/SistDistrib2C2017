@@ -20,7 +20,10 @@ int connect_socket(int sock_fd,std::string ip_addr,unsigned short port) {
     conn_info.sin_port = htons(port);
     memset(conn_info.sin_zero,0,sizeof(conn_info.sin_zero));
     int connect_res = connect(sock_fd,(struct sockaddr*) &conn_info, sizeof(conn_info));
-    if (connect_res < 0) THROW_UTIL("[SOCKET] Error when connecting to" + ip_addr + ":" + std::to_string(port));
+
+    if (connect_res < 0) {
+        THROW_UTIL("[SOCKET] Error when connecting to" + ip_addr + ":" + std::to_string(port));
+    }
     return connect_res;
 }
 
@@ -30,13 +33,18 @@ int bind_socket(int sock_fd, std::string ip_addr, unsigned short port) {
     server_info.sin_port = htons(port);
     server_info.sin_family = AF_INET;
     int bind_res = bind(sock_fd,(struct sockaddr*) &server_info, sizeof(server_info));
-    if (bind_res < 0) THROW_UTIL("[SOCKET] Error when binding" + ip_addr + ":" +  std::to_string(port));
+    if (bind_res < 0){
+        THROW_UTIL("[SOCKET] Error when binding" + ip_addr + ":" +  std::to_string(port));
+    }
+    printf("PASO EL BIND RES %d \n",bind_res);
     return  bind_res;
 }
 
 int listen_socket(int sock_fd) {
     int res_listen = listen(sock_fd,MAX_BACKLOG_CONN);
-    if (res_listen < 0) THROW_UTIL("[SOCKET] Error when setting socket to listen");
+    if (res_listen < 0){
+        THROW_UTIL("[SOCKET] Error when setting socket to listen");
+    }
     return res_listen;
 }
 
@@ -59,7 +67,9 @@ int accept_connection(int sock_fd, sockaddr_in &client_info) {
 
 int close_socket(int sock_fd) {
     int res = close(sock_fd);
-    if (res < 0) THROW_UTIL("[SOCKET] Error when closing socket");
+    if (res < 0) {
+        THROW_UTIL("[SOCKET] Error when closing socket");
+    }
     return res;
 }
 

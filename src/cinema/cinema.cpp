@@ -170,6 +170,7 @@ void cinema_listen_client(Cinema cinema) {
 }
 
 void network_listen(Cinema cinema) {
+    printf("LLEGO ACA \n");
     if (fork() == 0) {
         while (true) {
             network_comm accept_fd = network_accept_connection(cinema.cinema_net_info);
@@ -177,10 +178,10 @@ void network_listen(Cinema cinema) {
                 while (true) {
                     q_message msg_to_receive,msg_to_send;
                     receive_packet(accept_fd.sock_fd,msg_to_receive);
-                    if(msg_to_receive.message_choice_number == CHOICE_EXIT) break;
                     send_message(cinema.client_comm,msg_to_receive);
-                    msg_to_send = receive_message(cinema.admin_comm,-1);
+                    msg_to_send = receive_message(cinema.admin_comm,0);
                     send_packet(accept_fd.sock_fd,msg_to_send);
+                    if(msg_to_receive.message_choice_number == CHOICE_EXIT) break;
                 }
                 exit(0);
             }
@@ -202,7 +203,6 @@ void cinema_start() {
     /*Setup network component*/
     network_newconn(cinema.cinema_net_info,CINEMA_IP_ADDR,CINEMA_PORT);
     network_prepare_accept(cinema.cinema_net_info);
-
     network_listen(cinema);
     printf("======= CINEMA ======\n");
     while (1) {
