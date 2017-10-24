@@ -176,10 +176,12 @@ void network_listen(Cinema cinema) {
             network_comm accept_fd = network_accept_connection(cinema.cinema_net_info);
             if(fork() == 0) {
                 while (true) {
+                    cinema.client_comm.orientation = COMMQUEUE_AS_CLIENT;
                     q_message msg_to_receive,msg_to_send;
                     receive_packet(accept_fd.sock_fd,msg_to_receive);
                     send_message(cinema.client_comm,msg_to_receive);
-                    msg_to_send = receive_message(cinema.admin_comm,0);
+                    cinema.client_comm.orientation = COMMQUEUE_AS_SERVER;
+                    msg_to_send = receive_message(cinema.client_comm,0);
                     send_packet(accept_fd.sock_fd,msg_to_send);
                     if(msg_to_receive.message_choice_number == CHOICE_EXIT) break;
                 }

@@ -230,8 +230,12 @@ void network_listen(Mom mom)  {
     pid_t pid = fork();
     if (pid == 0) {
         while (true) {
+            printf("WAITING MSG \n");
+            mom.cinema_queue.orientation = COMMQUEUE_AS_SERVER;
             q_message msg_to_serialize =receive_message(mom.cinema_queue,0);
+            printf("RECEIVED MESSAGE \n");
             send_packet(mom.conn_info.sock_fd,msg_to_serialize);
+            printf("SENT PACKET \n");
             q_message msg_to_deserialize;
             receive_packet(mom.conn_info.sock_fd,msg_to_deserialize);
             send_message(mom.client_queue,msg_to_deserialize);
