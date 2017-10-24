@@ -172,23 +172,27 @@ void cinema_listen_client(Cinema cinema) {
 
 void network_listen(Cinema cinema) {
     if (fork() == 0) {
+        Accept_Connection:
         printf("[CINEMA-NETWORK] Listen connections in %s:%d\n",CINEMA_IP_ADDR,CINEMA_PORT);
         network_comm accept_fd = network_accept_connection(cinema.cinema_net_info);
-        cinema.client_comm.orientation = COMMQUEUE_AS_CLIENT;
-        cinema.client_comm.id = -1;
-        while (true) {
-            q_message msg_to_receive{},msg_to_send{};
+        if (fork() == 0) {
+            cinema.client_comm.orientation = COMMQUEUE_AS_CLIENT;
+            cinema.client_comm.id = -1;
+            while (true) {
+                q_message msg_to_receive{},msg_to_send{};
 
-            receive_packet(accept_fd.sock_fd,msg_to_receive);
+                receive_packet(accept_fd.sock_fd,msg_to_receive);
 
-            send_message(cinema.client_comm,msg_to_receive);
+                send_message(cinema.client_comm,msg_to_receive);
 
-            int type = (msg_to_receive.message_type == TYPE_CONNECTION_CINEMA_REQUEST) ? msg_to_receive.message_choice.m1.client_id : msg_to_receive.message_type;
-            msg_to_send = receive_message(cinema.client_comm, type);
+                int type = (msg_to_receive.message_type == TYPE_CONNECTION_CINEMA_REQUEST) ? msg_to_receive.message_choice.m1.client_id : msg_to_receive.message_type;
+                msg_to_send = receive_message(cinema.client_comm, type);
 
-            send_packet(accept_fd.sock_fd,msg_to_send);
+                send_packet(accept_fd.sock_fd,msg_to_send);
 
+            }
         }
+        goto Accept_Connection;
     }
 }
 
