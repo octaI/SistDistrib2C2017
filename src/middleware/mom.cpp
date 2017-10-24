@@ -199,16 +199,18 @@ void fork_client(Mom mom, int client_local_id) {
     printf("[MOM] Connected and waiting request from client %d in PID: %d\n", client_local_id, (int)getpid());
     bool exit_listener = false;
     while (!exit_listener) {
+        printf("Waiting clieng msg\n");
         q_message client_request = receive_message(mom.client_queue);
-
+        printf(">>>>>>Mom cinema queue id : %d | message type : %d \n",mom.cinema_queue.id,client_request.message_type);
         send_message(mom.cinema_queue, client_request);
-
+        printf("[MOM] Sent Request \n");
         q_message cinema_response = (mom.client_cinema_id != UNDEFINED_CINEMA_CLIENT_ID) ?
                     receive_message(mom.cinema_queue) : receive_message(mom.cinema_queue, client_local_id);
-
+        printf("[MOM] Received response Request from Cinema \n");
         send_message(mom.client_queue, cinema_response);
-
+        printf("[MOM] Sent response Request from Cinema to client \n");
         process_message(&mom, cinema_response, &exit_listener);
+        printf("[MOM] Processed Msg \n");
 
     }
     printf("[MOM] End connection with client %d in PID: %d\n", client_local_id, (int)getpid());
@@ -234,13 +236,16 @@ void network_listen(Mom mom)  {
             mom.cinema_queue.orientation = COMMQUEUE_AS_SERVER;
             mom.client_queue.id = -1;
             q_message msg_to_serialize =receive_message(mom.cinema_queue,0);
-            printf("RECEIVED MESSAGE %d \n",mom.net_info.sock_fd);
+            printf("[MOM-NETWORK] RECEIVED MESSAGE %d \n",mom.net_info.sock_fd);
             send_packet(mom.net_info.sock_fd,msg_to_serialize);
-            printf("SENT PACKET \n");
+            printf("[MOM-NETWORK] SENT PACKET \n");
             q_message msg_to_deserialize;
             receive_packet(mom.net_info.sock_fd,msg_to_deserialize);
-            send_message(mom.client_queue,msg_to_deserialize);
-            if(msg_to_serialize.message_choice_number == CHOICE_EXIT) break;
+            printf("[MOM-NETWORK] RECEIVED RESPONSE FROM CINEMA WITH mtype %d \n",msg_to_deserialize.message_choice_number);
+            send_message(mom.cinema_queue,msg_to_deserialize);
+            if(msg_to_serialize.message_choice_number == CHOICE_EXIT){
+                break;
+            }
         }
 
         exit(0);

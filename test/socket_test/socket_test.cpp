@@ -12,6 +12,7 @@ int socket_serialize_message_test1() {
     serialize_message(test_message_s,data_buffer);
     deserialize_message(test_message_r,data_buffer);
     printf("Message client id: %d \n",test_message_r.message_choice.m1.client_id);
+    printf("Message choice number : %d | original choice number : %d \n",test_message_r.message_choice_number,test_message_s.message_choice_number);
     if (test_message_s.message_choice.m1.client_id != test_message_r.message_choice.m1.client_id) res = -1;
     free(data_buffer);
     return res;

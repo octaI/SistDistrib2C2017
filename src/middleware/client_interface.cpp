@@ -75,15 +75,15 @@ int _connect_to_cinema(Client client) {
 
     q_message request_connect_to_cinema{};
     request_connect_to_cinema.message_type = TYPE_CONNECTION_CINEMA_REQUEST;
-    request_connect_to_cinema.client_id = 777;
     request_connect_to_cinema.message_choice_number = TYPE_CONNECTION_CINEMA_REQUEST;
     request_connect_to_cinema.message_choice.m1.client_id = client_token;
 
     send_message(client.mom_queue,request_connect_to_cinema);
-    printf("[CLIENT-INTERFACE token: %d] Attemp to connect with cinema\n",client_token);
 
+    printf("[CLIENT-INTERFACE token: %d] Attemp to connect with cinema\n",client_token);
     q_message response = receive_message(client.mom_queue);
     int client_cinema_id;
+    printf("[CLIENT - INTERFACE token : %d] Received response with msg choice number %d \n",client_token,response.message_choice_number);
     if (response.message_choice_number == CHOICE_CONNECTION_ACCEPTED) {
         client_cinema_id = response.message_choice.m1.client_id;
         printf("[CLIENT-INTERFACE token: %d] Connection accepted. cinema_id: %d\n",client_token,client_cinema_id);

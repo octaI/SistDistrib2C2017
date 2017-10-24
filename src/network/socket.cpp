@@ -161,6 +161,10 @@ void serialize_message(q_message sent_msg, char* data_to_serialize) {
             serialize_reservation(data_as_int,sent_msg.message_choice.m7.list,sent_msg.message_choice.m7.count);
             break;
         }
+        default: {
+            *data_as_int = htonl(sent_msg.message_choice.m1.client_id);
+            break;
+        }
 
 
     }
@@ -301,6 +305,5 @@ int receive_packet (int sock_fd, q_message &received_msg){
     data_buffer = initial_pos;
     deserialize_message(received_msg,data_buffer);
     free(data_buffer);
-    received_msg.message_choice_number = 115;
     return 1;
 }
