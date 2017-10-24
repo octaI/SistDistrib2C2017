@@ -215,7 +215,7 @@ void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
 
         case CHOICE_SEATS_RESPONSE : {
             /* |success | count | {seat_ids} | {seat_status} | {information} |    */
-            rec_msg.message_choice.m4.success = ntohl(*data_as_int);
+            rec_msg.message_choice.m4.success = ntohs(*data_as_int);
             data_as_int++;
             rec_msg.message_choice.m4.count = ntohl(*data_as_int);
             data_as_int++;

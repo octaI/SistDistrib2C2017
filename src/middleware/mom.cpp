@@ -6,6 +6,7 @@
 #include <constants.h>
 #include <messages/message.h>
 #include <cstring>
+#include <network/network_comm.h>
 
 #define UNDEFINED_CINEMA_CLIENT_ID (-1) //User not connected
 #define UNDEFINED_LOCAL_CLIENT_ID (-1)
@@ -24,6 +25,7 @@ typedef struct {
 
     int client_local_id{};
     int client_cinema_id{};
+    network_comm net_info;
 } Mom;
 
 
@@ -83,6 +85,7 @@ Mom start_mom() {
 
     return mom;
 }
+
 
 int connect_client(Mom mom) {
     q_message connect_request = receive_message(mom.client_queue, TYPE_CONNECTION_MOM_REQUEST);

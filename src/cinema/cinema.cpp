@@ -11,48 +11,62 @@
 #include <admin/admin.h>
 #include <iostream>
 #include <ipc/semaphore.h>
+#include <network/network_comm.h>
+#include <map>
 
 #define TIMER_CLOSE (-134)
 #define MAX_TIME_TO_WAIT_SECONDS 100
 #define TIMER_POLLING 2
 #define CONNECTION_TIMEDOUT -1
 
+typedef struct {
+    commqueue client_comm, admin_comm;
+    network_comm cinema_info;
 
-void send_confirmation(commqueue communication, int client_id) {
+    int client_id;
+
+    std::map<int,network_comm> client_address;
+
+    int timer_mutex;
+    int timer_position;
+} Cinema;
+
+void send_confirmation(Cinema cinema) {
     q_message confirmation{};
     confirmation.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
-    confirmation.message_choice.m1.client_id = client_id;
-    send_message(communication,confirmation);
-    printf("[CINEMA] Connected with CLIENT %d who send me with token %d\n", client_id, communication.id);
+    confirmation.message_choice.m1.client_id = cinema.client_id;
+    send_message(cinema.client_comm,confirmation);
+    printf("[CINEMA] Connected with CLIENT %d who send me with token %d\n", cinema.client_id, cinema.client_comm.id);
 }
 
-int cinema_take_client(commqueue client_communication, commqueue admin_communication) {
+int cinema_take_client(Cinema cinema) {
     //TAKE CLIENT FROM QUEUE
     printf("[CINEMA] Waiting connection request\n");
-    q_message message = receive_message(client_communication,TYPE_CONNECTION_CINEMA_REQUEST);
+    q_message message = receive_message(cinema.client_comm,TYPE_CONNECTION_CINEMA_REQUEST);
     int client_id = message.message_choice.m1.client_id;
-    client_communication.id = client_id;
+    cinema.client_comm.id = client_id;
 
     q_message register_client{};
     register_client.client_id = client_id;
     register_client.message_choice_number = CHOICE_CONNECTION_ACCEPTED;
-    send_message(admin_communication, register_client);
+    send_message(cinema.admin_comm, register_client);
 
-    admin_communication.id = client_id;
-    q_message register_response = receive_message(admin_communication);
+    cinema.admin_comm.id = client_id;
+    q_message register_response = receive_message(cinema.admin_comm);
     if (register_response.message_choice_number != CHOICE_CONNECTION_ACCEPTED) {
         THROW_UTIL("[CINEMA] Cannot register CLIENT " + std::to_string(client_id));
     }
-    client_id = register_response.message_choice.m1.client_id;
 
-    send_confirmation(client_communication, client_id);
+    cinema.client_id = register_response.message_choice.m1.client_id;
+
+    send_confirmation(cinema);
 
     pid_t pid;
     while ((pid = waitpid(-1, nullptr, WNOHANG)) > 1) {
         //Listener (pid) destroyed
         printf("[CINEMA] ** CHILD FINISHED **\n");
     }
-    return client_id; //client_pid
+    return cinema.client_id; //client_pid
 }
 
 int update_timestamp(void* timer, int client_position, int mutex_id, int new_value = (int)time(nullptr)) {
@@ -92,7 +106,7 @@ void* start_timer(commqueue communication, int mutex_id, int *timer_pid) {
             }
             int difference = timestamp - last_time_stamp;
             if (difference > MAX_TIME_TO_WAIT_SECONDS) {
-                printf("[CINEMA-TIMER] [CLIENT %d] Close connectio %d seconds of client inactivity\n", communication.id , difference);
+                printf("[CINEMA-TIMER] [CLIENT %d] Close connection %d seconds of client inactivity\n", communication.id , difference);
                 q_message exit_message{};
                 exit_message.message_choice_number = CHOICE_EXIT;
                 // Send message "as client" to cinema to close the connection
@@ -111,20 +125,22 @@ void* start_timer(commqueue communication, int mutex_id, int *timer_pid) {
 }
 
 
-void cinema_listen_client(commqueue client_communication, commqueue admin_communication, int client_id) {
-    client_communication.id = client_id;
+void cinema_listen_client(Cinema cinema) {
+    cinema.client_comm.id = cinema.client_id;
 
+    printf("[CINEMA] [LISTENING TO CLIENT %d] \n",cinema.client_id);
+    
     int mutex_shared_memory = semaphore_get(MUTEX_CINEMA_FILE, MUTEX_CINEMA_CHAR);
 
     int timer_pid = -1;
-    void* timer = start_timer(client_communication, mutex_shared_memory, &timer_pid);
-    printf("[CINEMA-CLIENT_%d] Timer Initialized with pid %d\n",client_id, timer_pid);
+    void* timer = start_timer(cinema.client_comm, mutex_shared_memory, &timer_pid);
+    printf("[CINEMA-CLIENT_%d] Timer Initialized with pid %d\n",cinema.client_id, timer_pid);
     int exit = 0;
-    int clien_position = client_id % MAX_CLIENTS;
+    int clien_position = cinema.client_id % MAX_CLIENTS;
     while (exit == 0) {
         //1 - Receive message from queue (client id)
-        q_message request = receive_message(client_communication);
-        printf("[CINEMA] [RECEIVE MESSAGE FROM CLIENT %d] MSG_CHOICE: %d\n",client_id, (int)request.message_choice_number);
+        q_message request = receive_message(cinema.client_comm);
+        printf("[CINEMA] [RECEIVE MESSAGE FROM CLIENT %d] MSG_CHOICE: %d\n",cinema.client_id, (int)request.message_choice_number);
 
         //1-bis Update timer
         if (get_timestamp(timer,clien_position,mutex_shared_memory) != CONNECTION_TIMEDOUT)
@@ -132,41 +148,45 @@ void cinema_listen_client(commqueue client_communication, commqueue admin_commun
 
         //2 - Process message
         //2.1 - Generate response after process
-        request.client_id = client_id;
-        q_message response = cinema_handle(admin_communication, request, &exit);
+        request.client_id = cinema.client_id;
+        q_message response = cinema_handle(cinema.admin_comm, request, &exit);
 
         //3 - Send response
-        send_message(client_communication,response);
-        printf("[CINEMA] [SENT RESPONSE TO CLIENT %d] MSG_CHOICE: %d\n",client_communication.id,response.message_choice_number);
+        printf("[CINEMA] [SENT RESPONSE TO CLIENT %d] MSG_CHOICE: %d\n",cinema.client_comm.id,response.message_choice_number);
+        send_message(cinema.client_comm,response);
     }
     kill(timer_pid, SIGKILL);
 
     if (get_timestamp(timer,clien_position,mutex_shared_memory) == CONNECTION_TIMEDOUT) {
         // Cinema close the connection. If client send a message, receive it and finish
-        printf("[CINEMA] Wait a message from CLIENT %d after close\n",client_id);
-        receive_message(client_communication);
+        printf("[CINEMA] Wait a message from CLIENT %d after close\n",cinema.client_id);
+        receive_message(cinema.client_comm);
     } else {
         // Client finish the connection. Close timer if it wasn't killed
         update_timestamp(timer, clien_position, mutex_shared_memory, TIMER_CLOSE);
     }
     shm_dettach(timer);
-    printf("[CINEMA] Finish client_communication with CLIENT %d\n", client_id);
+    printf("[CINEMA] Finish client_communication with CLIENT %d\n", cinema.client_id);
 }
 
 void cinema_start() {
+    Cinema cinema;
     /* Create comunication with client */
-    commqueue client_communication = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
-    client_communication.orientation = COMMQUEUE_AS_SERVER;
+    cinema.client_comm = create_commqueue(QUEUE_COMMUNICATION_FILE,QUEUE_COMMUNICATION_CHAR);
+    cinema.client_comm.orientation = COMMQUEUE_AS_SERVER;
+
     /* Create communication with admin */
-    commqueue admin_communication = create_commqueue(QUEUE_CINEMA_ADMIN_FILE, QUEUE_CINEMA_ADMIN_CHAR);
-    admin_communication.orientation = COMMQUEUE_AS_CLIENT;
-    admin_communication.id = ADMIN_REQUEST;
+    cinema.admin_comm = create_commqueue(QUEUE_CINEMA_ADMIN_FILE, QUEUE_CINEMA_ADMIN_CHAR);
+    cinema.admin_comm.orientation = COMMQUEUE_AS_CLIENT;
+    cinema.admin_comm.id = ADMIN_REQUEST;
+
 
     printf("======= CINEMA ======\n");
     while (1) {
-        int client_pid = cinema_take_client(client_communication, admin_communication);
+        int client_id = cinema_take_client(cinema);
         if (fork() == 0) {
-            cinema_listen_client(client_communication, admin_communication, client_pid);
+            cinema.client_id = client_id;
+            cinema_listen_client(cinema);
             exit(0);
         }
     }
