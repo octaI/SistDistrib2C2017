@@ -255,6 +255,10 @@ void deserialize_message(q_message &rec_msg, char* data_to_deserialize) {
             deserialize_reservations(data_as_int,rec_msg,rec_msg.message_choice.m7.count);
             break;
         }
+        default: {
+            rec_msg.message_choice.m1.client_id = ntohl(*data_as_int);
+            break;
+        }
     }
 }
 
@@ -282,6 +286,7 @@ int send_packet(int sock_fd, q_message msg_to_send) {
 int receive_packet (int sock_fd, q_message &received_msg){
     int msg_size = sizeof(q_message) + sizeof(int)*2;
     char* data_buffer = (char*) malloc(msg_size);
+    char* initial_pos = data_buffer;
     int rec_bytes = 0;
     while (rec_bytes < msg_size) {
         int temp = recv(sock_fd,data_buffer,msg_size-rec_bytes,0);
@@ -293,8 +298,9 @@ int receive_packet (int sock_fd, q_message &received_msg){
         rec_bytes+=temp;
         data_buffer+=temp;
     }
+    data_buffer = initial_pos;
     deserialize_message(received_msg,data_buffer);
-    data_buffer-=msg_size;
     free(data_buffer);
+    received_msg.message_choice_number = 115;
     return 1;
 }

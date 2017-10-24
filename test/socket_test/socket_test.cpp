@@ -180,6 +180,22 @@ int socket_serialize_message_test7() {
 
     return res;
 }
+
+int socket_serialize_message_only_with_client_id_test8() { //FOR CONNECTION M_TYPE's
+    printf("INITIAL VALUES \n");
+    char* data_buffer = (char*) malloc(sizeof(q_message) + sizeof(int)*2);
+    q_message test_message_s,test_message_r;
+    test_message_s.message_choice.m1.client_id = 12041994;
+    printf("Client id: %d \n",test_message_s.message_choice.m1.client_id);
+
+    serialize_message(test_message_s,data_buffer);
+    deserialize_message(test_message_r,data_buffer);
+
+    free(data_buffer);
+    printf("Client_s id: %d \n",test_message_r.message_choice.m1.client_id);
+    return (test_message_s.message_choice.m1.client_id == test_message_r.message_choice.m1.client_id) ? 1 : 0;
+}
+
 int main () {
     printf("**** TEST 1***** \n");
     socket_serialize_message_test1();
@@ -201,6 +217,9 @@ int main () {
     printf("-------------------------------- \n");
     printf("**** TEST 7***** \n");
     socket_serialize_message_test7();
+    printf("-------------------------------- \n");
+    printf("**** TEST 8***** \n");
+    socket_serialize_message_only_with_client_id_test8();
     printf("-------------------------------- \n");
     return 0;
 }

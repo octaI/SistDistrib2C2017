@@ -34,7 +34,7 @@ Por ultimo el cliente realiza la transaccion para abonar las reservas. En ese mo
 ```bash
     # Init DB data and initialize IPC's
     $ ./bin/database_data_init
-    $ ./bin/utils/initializer
+    $ ./bin/initializer
     # Wake up cinema server
     $ ./bin/cinema
     
