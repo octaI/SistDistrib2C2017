@@ -264,7 +264,7 @@ int send_packet(int sock_fd, q_message msg_to_send) {
     serialize_message(msg_to_send,data_buffer);
     int sent_bytes = 0;
     while(sent_bytes < msg_size) {
-        int temp = send(sock_fd,data_buffer,msg_size - sent_bytes,0);
+        ssize_t temp = send(sock_fd,data_buffer,msg_size - sent_bytes,0);
         if (temp < 0) {
             THROW_UTIL("[SOCKET] Error when sending message to destination");
             return -1;
